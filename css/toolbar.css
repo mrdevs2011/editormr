@@ -1,0 +1,64 @@
+    .toolbar {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 2px;
+      padding: 1px 5px;
+      background: #151619;
+      border-top: 1px solid #202226;
+      border-bottom: 1px solid #202226;
+      flex-shrink: 0;
+      height: 26px;
+    }
+
+    .tool-btn {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      padding: 0;
+      border-radius: 2px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: #888;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s, color 0.1s;
+    }
+
+    .tool-btn svg {
+      width: 12px;
+      height: 12px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .tool-btn:hover {
+      background: #202226;
+      color: #ddd;
+    }
+
+    .tool-btn.active {
+      background: #181a1d;
+      color: var(--brand-blue);
+      border-color: #303339;
+    }
+
+    .tool-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .tool-sep {
+      width: 1px;
+      height: 10px;
+      background: #272a2f;
+      margin: 0 2px;
+    }
+
+    /* Timeline */

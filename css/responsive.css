@@ -1,0 +1,576 @@
+    /* ========== UMUMIY TUZATISHLAR (barcha qurilmalar) ========== */
+
+    /* 100vh planshet/telefon brauzerida manzil paneli sabab pastdan kesib qo'yadi — 100dvh ishlatamiz */
+    @supports (height: 100dvh) {
+      body,
+      #upload-screen,
+      #editor-screen {
+        height: 100dvh;
+      }
+    }
+
+    html,
+    body {
+      overscroll-behavior: none;            /* tortganda sahifa "sakramasin" / pull-to-refresh bo'lmasin */
+    }
+
+    /* body'dagi user-select:none iOS/iPadOS'da input va matn tahriri (contenteditable) ni buzmasin */
+    input,
+    textarea,
+    select,
+    [contenteditable] {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+
+    button,
+    a,
+    .media-block,
+    .project-card {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Pastki action-bar faqat EDITOR ochiq bo'lganda ko'rinsin (dashboard'da kerak emas).
+       Editor ochilganda JS #editor-screen'ga inline style="display:flex" beradi. */
+    #editor-screen:not([style*="flex"]) + .mobile-action-bar {
+      display: none !important;
+    }
+
+    /* Touch qurilmada (telefon + planshet): hover yo'q — dashboard amallari doim ko'rinsin */
+    @media (hover: none) {
+      .hint { display: none; }
+
+      .project-actions { opacity: 1; }
+      .project-play { opacity: 0.85; background: rgba(8, 10, 12, 0.25); }
+      .project-card:hover {
+        transform: none;
+        box-shadow: none;
+      }
+      .project-card:hover .project-thumb img { transform: none; }
+    }
+
+    /* Touch qurilmada toast va matn paneli pastki action-bar ostida qolib ketmasin */
+    @media (pointer: coarse) {
+      .toast {
+        z-index: 400;
+        bottom: calc(52px + env(safe-area-inset-bottom, 0px) + 12px);
+      }
+
+      /* Matn (text) suzuvchi paneli: viewport pastiga, action-bar tepasiga mahkamlanadi */
+      .text-float-bar {
+        position: fixed;
+        z-index: 250;
+        bottom: calc(52px + env(safe-area-inset-bottom, 0px) + 10px);
+        max-width: calc(100vw - 16px);
+      }
+    }
+
+    /* ========== TOUCH DEVICES (phone AND tablet — based on input type, not screen size) ========== */
+    /* Bu blok "ekran kengligi" emas, balki "barmoq bilanmi yoki sichqonchami" ekanini tekshiradi,
+       shuning uchun telefon ham, planshet ham bir xil qulaylikda ishlaydi. */
+    @media (pointer: coarse) {
+      .tool-btn {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+      }
+
+      .tool-btn svg {
+        width: 12px;
+        height: 12px;
+        stroke-width: 1.5;
+      }
+
+      .tool-sep {
+        height: 16px;
+        margin: 0 4px;
+      }
+
+      .toolbar {
+        height: 44px;
+        gap: 4px;
+        padding: 2px 6px;
+      }
+
+      .play-btn {
+        width: 34px;
+        height: 34px;
+      }
+
+      .play-btn svg {
+        width: 12px;
+        height: 12px;
+        stroke-width: 0;
+      }
+
+      .play-controls {
+        height: 34px;
+      }
+
+      .zoom-btn {
+        width: 30px;
+        height: 30px;
+      }
+
+      .zoom-btn svg {
+        width: 12px;
+        height: 12px;
+        stroke-width: 1.5;
+      }
+
+      .export-btn {
+        width: 32px;
+        height: 30px;
+      }
+
+      .export-btn svg {
+        width: 12px;
+        height: 12px;
+        stroke-width: 1.5;
+      }
+
+      .timeline-header {
+        height: 28px;
+      }
+
+      .timeline-resize-handle {
+        height: 14px;
+      }
+
+      .track {
+        min-height: 44px;
+        height: auto;
+      }
+
+      .track-lane {
+        min-height: 38px;
+        height: 38px;
+      }
+
+      .media-block {
+        height: 32px;
+      }
+
+      .trim-handle {
+        width: 14px;
+      }
+
+      .playhead::after {
+        left: -16px;
+        width: 33px;
+      }
+
+      .playhead::before {
+        width: 18px;
+        height: 21px;
+        left: 50%;
+        top: 0;
+      }
+    }
+
+    /* ========== RESPONSIVE: TABLET ========== */
+    @media (max-width: 1024px) {
+      .preview-area {
+        padding: 6px 8px 4px;
+      }
+
+      .timeline-section {
+        height: 50vh;
+        min-height: 1vh;
+      }
+    }
+
+    /* ========== RESPONSIVE: MOBILE ========== */
+    @media (max-width: 640px) {
+      body {
+        height: 100dvh;
+      }
+
+      #upload-screen {
+        height: 100dvh;
+      }
+
+      .dash {
+        padding: 16px 12px 28px;
+      }
+
+      .brand {
+        font-size: 1.1rem;
+      }
+
+      .brand img {
+        height: 22px;
+        width: auto;
+      }
+
+      .dash-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+      }
+
+      .upload-box {
+        justify-content: space-between;
+      }
+
+      .upload-btn {
+        padding: 10px 18px;
+        font-size: 0.9rem;
+      }
+
+      .project-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+      }
+
+      .project-card:hover {
+        transform: none;
+      }
+
+      /* touch: hover yo'q — amallar va play doim ko'rinsin */
+      .project-actions {
+        opacity: 1;
+      }
+      .project-play {
+        opacity: 0.85;
+        background: rgba(8, 10, 12, 0.25);
+      }
+
+      .dash-section-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      #editor-screen {
+        height: 100dvh;
+      }
+
+      .preview-area {
+        padding: 4px 4px 2px;
+      }
+
+      .video-wrapper {
+        border-radius: 4px;
+      }
+
+      .play-controls {
+        margin-top: 4px;
+        gap: 10px;
+      }
+
+      .play-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 15px;
+      }
+
+      .time-display {
+        font-size: 0.75rem;
+        min-width: 80px;
+      }
+
+      /* Toolbar: scrollable row on narrow screens */
+      .toolbar {
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        padding: 6px 8px;
+        gap: 6px;
+        scrollbar-width: none;
+      }
+
+      .toolbar::-webkit-scrollbar {
+        height: 6px;
+      }
+
+      .toolbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .toolbar::-webkit-scrollbar-thumb {
+        background: #363a41;
+        border-radius: 3px;
+        border: 1px solid #151619;
+      }
+
+      .toolbar::-webkit-scrollbar-thumb:hover {
+        background: #454a53;
+      }
+
+      .tool-btn {
+        min-width: 40px;
+        height: 36px;
+        padding: 0 12px;
+        font-size: 0.72rem;
+        flex-shrink: 0;
+        border-radius: 8px;
+      }
+
+      .tool-sep {
+        flex-shrink: 0;
+      }
+
+      .timeline-section {
+        height: 50dvh;
+        min-height: 1dvh;
+        max-height: 100dvh;
+      }
+
+      .timeline-header {
+        padding: 2px 4px;
+        flex-wrap: wrap;
+        gap: 2px;
+        height: auto;
+        min-height: 18px;
+      }
+
+      .timeline-header-left {
+        font-size: 0.6rem;
+      }
+
+      .export-btn {
+        width: 24px;
+        height: 20px;
+        padding: 2px 4px;
+        font-size: 0.6rem;
+      }
+
+      .zoom-btn {
+        width: 28px;
+        height: 28px;
+      }
+
+      .track {
+        min-height: 48px;
+        height: auto;
+        margin: 2px 0;
+      }
+
+      .track-lane {
+        min-height: 40px;
+        height: 40px;
+        margin-left: 4px;
+        margin-right: 4px;
+      }
+
+      .media-block {
+        height: 34px;
+        top: 3px;
+      }
+
+      /* Larger touch targets for playhead */
+      .playhead::after {
+        left: -14px;
+        width: 30px;
+      }
+
+      .playhead::before {
+        width: 20px;
+        height: 23px;
+        left: 50%;
+        top: 0;
+      }
+
+      .trim-handle {
+        width: 12px;
+      }
+
+      .clip-context-menu {
+        min-width: 160px;
+        font-size: 0.95rem;
+      }
+
+      .clip-context-menu button {
+        padding: 12px 18px;
+        font-size: 0.95rem;
+      }
+
+      .toast {
+        left: 12px;
+        right: 12px;
+        transform: translateY(8px);
+        width: auto;
+        text-align: center;
+        font-size: 0.82rem;
+        padding: 10px 14px;
+      }
+
+      .toast.show {
+        transform: translateY(0);
+      }
+
+      .loading-overlay {
+        padding: 20px;
+      }
+    }
+
+    /* ========== RESPONSIVE: SMALL PHONE ========== */
+    @media (max-width: 380px) {
+      .tool-btn {
+        padding: 0 8px;
+        font-size: 0.68rem;
+      }
+
+      /* Hide text labels, keep icons/symbols */
+      .tool-btn {
+        min-width: 36px;
+      }
+
+      .timeline-section {
+        height: 155px;
+      }
+    }
+
+    /* ========== LANDSCAPE MOBILE ========== */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .preview-area {
+        padding: 2px 4px;
+      }
+
+      .play-controls {
+        margin-top: 2px;
+      }
+
+      .play-btn {
+        width: 32px;
+        height: 32px;
+        font-size: 12px;
+      }
+
+      .toolbar {
+        padding: 3px 6px;
+      }
+
+      .tool-btn {
+        height: 28px;
+        min-width: 32px;
+        font-size: 0.68rem;
+      }
+
+      .timeline-section {
+        height: 110px;
+        min-height: 90px;
+        max-height: 40dvh;
+      }
+
+      .timeline-header {
+        padding: 2px 8px;
+      }
+
+      .track {
+        min-height: 40px;
+        height: auto;
+      }
+
+      .track-lane {
+        min-height: 34px;
+        height: 34px;
+      }
+
+      .media-block {
+        height: 28px;
+        top: 3px;
+      }
+    }
+
+    /* Desktop large screens */
+    @media (min-width: 1200px) {
+      .preview-area {
+        padding: 12px 24px 8px;
+      }
+
+      .timeline-header-left {
+        display: none;
+      }
+    }
+
+
+    /* Mobile floating action bar — only touch / coarse pointer */
+    .mobile-action-bar {
+      display: none;
+    }
+
+    @media (pointer: coarse) {
+      .mobile-action-bar {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 52px;
+        background: #1a1c20;
+        border-top: 1px solid #2a2d33;
+        justify-content: space-around;
+        align-items: center;
+        z-index: 200;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        box-sizing: content-box;
+      }
+
+      .mob-btn.is-off,
+      .mob-btn[hidden] {
+        display: none !important;
+      }
+
+      /* Clip amallari pastki barda — yuqoridagi undo/redo takrorlanmasin */
+      #undo-btn,
+      #redo-btn,
+      .tool-sep-history {
+        display: none;
+      }
+
+      .mob-btn {
+        flex: 1;
+        max-width: 64px;
+        height: 48px;
+        border: none;
+        background: transparent;
+        color: #c8ccd2;
+        font-size: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        cursor: pointer;
+        padding: 0;
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .mob-btn svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .mob-btn svg [fill="currentColor"] {
+        fill: currentColor;
+        stroke: none;
+      }
+
+      .mob-btn span {
+        font-size: 9px;
+        line-height: 1;
+        color: #888;
+      }
+
+      .mob-btn:active:not(:disabled) {
+        background: #272a2f;
+        border-radius: 6px;
+      }
+
+      .mob-btn:disabled {
+        opacity: 0.3;
+      }
+
+      /* Timeline pastki padding — bar ostida qolmasin */
+      #editor-screen .timeline-section {
+        padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+      }
+    }
