@@ -13,9 +13,17 @@
     const floatBtn = document.getElementById('float-btn');
     if (floatBtn) {
       floatBtn.addEventListener('click', () => {
-        const clip = getSelectedClip() || findClipAtTime(state.currentTime);
+        if (typeof isSelected === 'function' && isSelected(MUSIC_ID) && !getSelectedClip()) {
+          showToast('Musiqa float bo\'lmaydi');
+          return;
+        }
+        const clip = getSelectedClip();
         if (clip) toggleFloatClip(clip);
-        else showToast('Float uchun clip tanlang');
+        else {
+          const textSel = (state.textClips || []).find(t => t.id === state.selectedClipId || (state.selectedIds && state.selectedIds.has(t.id)));
+          if (textSel) showToast('Text allaqachon overlay (float)');
+          else showToast('Float uchun video, photo yoki text tanlang');
+        }
       });
     }
 

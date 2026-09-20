@@ -29,6 +29,15 @@
 
     #video-lane {
       overflow: hidden;
+      background-image:
+        linear-gradient(to bottom, rgba(93, 149, 173, 0.10) 0, rgba(93, 149, 173, 0.10) var(--row-h, 28px), transparent var(--row-h, 28px)),
+        repeating-linear-gradient(
+          to bottom,
+          transparent 0,
+          transparent calc(var(--row-h, 28px) - 1px),
+          #24282e calc(var(--row-h, 28px) - 1px),
+          #24282e var(--row-h, 28px)
+        );
     }
 
     .media-block {

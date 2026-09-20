@@ -9,7 +9,7 @@
 
     function videoClipsOnTrack(track, excludeIds) {
       excludeIds = excludeIds || new Set();
-      return state.videoClips.filter(c => !isFloated(c) && !excludeIds.has(c.id) && clipTrackIndex(c) === track);
+      return state.videoClips.filter(c => !excludeIds.has(c.id) && clipTrackIndex(c) === track);
     }
 
     function trackSlotFree(track, start, end, excludeIds) {
@@ -53,8 +53,8 @@
     }
 
     /**
-     * Vertikal + gorizontal joylash: avvalo vaqtni saqlab bo'sh qator qidiriladi,
-     * bo'lmasa shu qatorda vaqt snap qilinadi. Hech qachon ustma-ust tushmaydi.
+     * 1-qator = asosiy o'q (float emas). 2+ qator = float.
+     * Asosiy o'q boshqa qatorga "qochib" ketmaydi.
      */
     function resolveVideoPlacement(clip, desiredStart, desiredTrack, excludeIds) {
       const dur = clipDuration(clip);
@@ -67,9 +67,16 @@
         return { start: desiredStart, track: desiredTrack };
       }
 
+      if (desiredTrack === MAIN_TRACK) {
+        return {
+          start: resolveVideoStartTimeOnTrack(clip, desiredStart, MAIN_TRACK, excludeIds),
+          track: MAIN_TRACK,
+        };
+      }
+
       for (let dist = 1; dist <= MAX_VIDEO_TRACKS; dist++) {
         for (const t of [desiredTrack - dist, desiredTrack + dist]) {
-          if (t < 0 || t >= MAX_VIDEO_TRACKS) continue;
+          if (t < 1 || t >= MAX_VIDEO_TRACKS) continue;
           if (trackSlotFree(t, desiredStart, desiredStart + dur, excludeIds)) {
             return { start: desiredStart, track: t };
           }
@@ -129,7 +136,6 @@
     function normalizeVideoOverlaps() {
       const byTrack = new Map();
       for (const c of state.videoClips) {
-        if (isFloated(c)) continue;
         const tr = clipTrackIndex(c);
         applyClipTrack(c, tr);
         if (!byTrack.has(tr)) byTrack.set(tr, []);
@@ -347,6 +353,15 @@
       if (state.dragGroup) {
         const vids = state.dragGroup.filter(g => state.videoClips.some(c => c.id === g.item.id));
         if (vids.length) {
+          const leavingMain = vids.filter(g => (g.track || 0) === MAIN_TRACK && clipTrackIndex(g.item) > MAIN_TRACK);
+          if (leavingMain.length) {
+            for (const g of leavingMain) {
+              g.item._homeTrack = MAIN_TRACK;
+              g.item._wasFloated = false;
+            }
+            inheritTransitionsForRemoved(leavingMain.map(g => g.item));
+            ripplePackAfterRemove(leavingMain.map(g => g.item));
+          }
           const exclude = new Set(vids.map(g => g.item.id));
           vids.sort((a, b) => a.item.startTime - b.item.startTime);
           const left = vids[0].item;
@@ -360,16 +375,23 @@
               vids[i].item.startTime = Math.max(0, vids[i].item.startTime + shift);
             }
           }
+          for (const g of vids) applyClipTrack(g.item, clipTrackIndex(g.item));
           normalizeVideoOverlaps();
         }
       } else if (state.dragTarget === 'video' && state.dragClipId) {
         const clip = getClipById(state.dragClipId);
-        if (clip && !isFloated(clip)) {
-          if (state.dragType === 'move' || state.dragType === 'trim-left' || state.dragType === 'trim-right') {
-            const place = resolveVideoPlacement(clip, clip.startTime, clipTrackIndex(clip));
-            clip.startTime = place.start;
-            applyClipTrack(clip, place.track);
+        if (clip && (state.dragType === 'move' || state.dragType === 'trim-left' || state.dragType === 'trim-right')) {
+          const origTrack = state.dragOrigTrack || MAIN_TRACK;
+          const nowTrack = clipTrackIndex(clip);
+          if (state.dragType === 'move' && origTrack === MAIN_TRACK && nowTrack > MAIN_TRACK) {
+            clip._homeTrack = MAIN_TRACK;
+            clip._wasFloated = false;
+            inheritTransitionsForRemoved([clip]);
+            ripplePackAfterRemove([clip]);
           }
+          const place = resolveVideoPlacement(clip, clip.startTime, nowTrack);
+          clip.startTime = place.start;
+          applyClipTrack(clip, place.track);
         }
       }
 

@@ -90,8 +90,11 @@
       return aStart < bEnd - 1e-4 && bStart < aEnd - 1e-4;
     }
 
-    // Video qatorlari: vertikal drag shu qatorlar ichida, musiqa/matn treki ustiga chiqmaydi
-    const MAX_VIDEO_TRACKS = 6;
+    // 1-qator (track 0) = asosiy o'q, hech qachon float emas.
+    // 2-qator va pastdagilar (track 1+) = float overlay. Qatorlar kerak bo'lsa o'sadi.
+    const MAIN_TRACK = 0;
+    const MIN_VIDEO_TRACKS = 2;
+    const MAX_VIDEO_TRACKS = 32;
 
     function getVideoRowHeight() {
       const lane = (typeof videoLane !== 'undefined' && videoLane)
@@ -111,25 +114,70 @@
       return 28;
     }
 
+    function isMainTrack(track) {
+      return (track | 0) <= MAIN_TRACK;
+    }
+
     function isFloated(c) {
-      return !!(c && c.floated);
+      if (!c) return false;
+      return clipTrackIndex(c) > MAIN_TRACK;
     }
 
     function clipTrackIndex(c) {
-      if (!c) return 0;
-      if (isFloated(c)) return 0;
+      if (!c) return MAIN_TRACK;
       if (c.track != null && isFinite(c.track)) {
-        return Math.max(0, Math.min(MAX_VIDEO_TRACKS - 1, Math.round(Number(c.track))));
+        return Math.max(MAIN_TRACK, Math.min(MAX_VIDEO_TRACKS - 1, Math.round(Number(c.track))));
       }
-      return 0;
+      // Eski loyihalar: floated=true lekin track yo'q
+      if (c.floated) return 1;
+      return MAIN_TRACK;
     }
 
     function applyClipTrack(c, track) {
-      if (!c) return 0;
-      const t = Math.max(0, Math.min(MAX_VIDEO_TRACKS - 1, Math.round(Number(track) || 0)));
+      if (!c) return MAIN_TRACK;
+      const t = Math.max(MAIN_TRACK, Math.min(MAX_VIDEO_TRACKS - 1, Math.round(Number(track) || 0)));
       c.track = t;
+      c.floated = t > MAIN_TRACK;
       c.offsetY = t * getVideoRowHeight();
       return t;
+    }
+
+    function usedVideoTracks() {
+      let maxT = MAIN_TRACK;
+      for (const c of (state.videoClips || [])) {
+        maxT = Math.max(maxT, clipTrackIndex(c));
+      }
+      return maxT;
+    }
+
+    function visibleVideoRows() {
+      return Math.max(MIN_VIDEO_TRACKS, usedVideoTracks() + 2);
+    }
+
+    function findFreeFloatTrack(clip, start, excludeIds) {
+      const dur = clipDuration(clip);
+      const s = Math.max(0, start != null ? start : clip.startTime);
+      const e = s + dur;
+      excludeIds = excludeIds || new Set([clip.id]);
+      for (let t = 1; t < MAX_VIDEO_TRACKS; t++) {
+        if (typeof trackSlotFree === 'function') {
+          if (trackSlotFree(t, s, e, excludeIds)) return t;
+        } else {
+          return t;
+        }
+      }
+      return 1;
+    }
+
+    function normalizeClipLaneFlags() {
+      const pending = [];
+      for (const c of (state.videoClips || [])) {
+        if (c.floated && (c.track == null || Number(c.track) <= MAIN_TRACK)) pending.push(c);
+        else applyClipTrack(c, clipTrackIndex(c));
+      }
+      for (const c of pending) {
+        applyClipTrack(c, findFreeFloatTrack(c, c.startTime, new Set([c.id])));
+      }
     }
 
     function syncVideoLaneHeight() {
@@ -138,17 +186,12 @@
         : document.getElementById('video-lane');
       const trackEl = document.getElementById('video-track');
       const pitch = getVideoRowHeight();
-      let maxT = 0;
-      let floatCount = 0;
-      for (const c of (state.videoClips || [])) {
-        if (isFloated(c)) floatCount++;
-        else maxT = Math.max(maxT, clipTrackIndex(c));
-      }
-      const rows = Math.max(1, maxT + 1 + floatCount);
+      const rows = visibleVideoRows();
       const laneH = rows * pitch + 4;
       if (lane) {
         lane.style.height = laneH + 'px';
         lane.style.minHeight = laneH + 'px';
+        lane.style.setProperty('--row-h', pitch + 'px');
       }
       if (trackEl) {
         trackEl.style.height = (laneH + 8) + 'px';
@@ -237,6 +280,7 @@
       for (const c of removedClips || []) {
         if (c._wasFloated) continue;
         const tr = c._homeTrack != null ? c._homeTrack : clipTrackIndex(c);
+        if (tr > MAIN_TRACK) continue;
         tracks.add(tr);
       }
       for (const tr of tracks) {
@@ -278,6 +322,7 @@
       for (const c of removedClips || []) {
         if (c._wasFloated) continue;
         const tr = c._homeTrack != null ? c._homeTrack : clipTrackIndex(c);
+        if (tr > MAIN_TRACK) continue;
         tracks.add(tr);
       }
       for (const tr of tracks) {

@@ -158,7 +158,7 @@
       if (typeof resolveVideoPlacement === 'function') {
         const place = resolveVideoPlacement(clip, clip.startTime, 0);
         clip.startTime = place.start;
-        applyClipTrack(clip, place.track);
+        applyClipTrack(clip, 0);
       } else if (typeof resolveVideoStartTime === 'function') {
         clip.startTime = resolveVideoStartTime(clip, clip.startTime);
         applyClipTrack(clip, 0);

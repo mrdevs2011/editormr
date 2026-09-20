@@ -482,42 +482,74 @@
       }
     });
 
+    function isMusicTarget(obj) {
+      if (!obj) return false;
+      if (obj === state.music) return true;
+      if (obj.id === 'music' || obj.id === MUSIC_ID) return true;
+      return false;
+    }
+
+    function getFloatableClips(preferred) {
+      const list = [];
+      if (preferred && !isMusicTarget(preferred) && state.videoClips.some(c => c.id === preferred.id)) {
+        list.push(preferred);
+      }
+      if (state.selectedIds && state.selectedIds.size) {
+        for (const c of state.videoClips) {
+          if (state.selectedIds.has(c.id) && !list.some(x => x.id === c.id)) list.push(c);
+        }
+      }
+      return list;
+    }
+
     function floatClip(clip) {
       if (!clip || isFloated(clip)) return;
       const origStart = clip.startTime;
-      clip._homeTrack = clipTrackIndex(clip);
+      clip._homeTrack = MAIN_TRACK;
+      clip._wasFloated = false;
       inheritTransitionsForRemoved([clip]);
-      clip.floated = true;
       clip.transitionType = 'none';
       ripplePackAfterRemove([clip]);
       clip.startTime = origStart;
+      const row = typeof findFreeFloatTrack === 'function'
+        ? findFreeFloatTrack(clip, origStart)
+        : 1;
+      applyClipTrack(clip, row);
     }
 
     function unfloatClip(clip) {
       if (!clip || !isFloated(clip)) return;
-      clip.floated = false;
+      applyClipTrack(clip, MAIN_TRACK);
       if (typeof resolveVideoPlacement === 'function') {
-        const place = resolveVideoPlacement(clip, clip.startTime, clipTrackIndex(clip) || 0);
+        const place = resolveVideoPlacement(clip, clip.startTime, MAIN_TRACK);
         clip.startTime = place.start;
-        applyClipTrack(clip, place.track);
       }
+      applyClipTrack(clip, MAIN_TRACK);
     }
 
     function toggleFloatClip(clip) {
-      if (!clip) {
-        clip = getSelectedClip();
+      if (isMusicTarget(clip) || (typeof isSelected === 'function' && isSelected(MUSIC_ID) && !getSelectedClip() && !clip)) {
+        showToast('Float faqat video, photo va text uchun. Musiqa float bo\'lmaydi');
+        return;
       }
-      if (!clip) {
-        showToast('Float uchun clip tanlang');
+      const pack = getFloatableClips(clip);
+      if (!pack.length) {
+        const textSel = (state.textClips || []).find(t => t.id === state.selectedClipId || (state.selectedIds && state.selectedIds.has(t.id)));
+        if (textSel) {
+          showToast('Text allaqachon overlay (float)');
+          return;
+        }
+        showToast('Float uchun video, photo yoki text tanlang');
         return;
       }
       pushHistory();
-      if (isFloated(clip)) {
-        unfloatClip(clip);
-        showToast('Qatorga qaytarildi');
+      const anyFloated = pack.some(c => isFloated(c));
+      if (anyFloated) {
+        pack.forEach(unfloatClip);
+        showToast('Asosiy qatorga qaytdi');
       } else {
-        floatClip(clip);
-        showToast('Float: videolar ustida');
+        pack.forEach(floatClip);
+        showToast('Float: pastki qator');
       }
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       renderVideoBlock();

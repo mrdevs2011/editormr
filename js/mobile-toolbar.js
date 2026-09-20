@@ -38,7 +38,7 @@
 
       const floatBtn = bar.querySelector('[data-act="float"]');
       if (floatBtn) {
-        const floated = !!(clip && clip.floated);
+        const floated = !!(clip && isFloated(clip));
         const label = floatBtn.querySelector('span');
         if (label) label.textContent = floated ? 'Unfloat' : 'Float';
         floatBtn.title = floated ? 'Qatorga qaytarish' : 'Float';
@@ -87,9 +87,16 @@
             splitClipAtPlayhead(id);
           }
         } else if (act === 'float') {
-          const clip = getSelectedClip() || findClipAtTime(state.currentTime);
-          if (clip) toggleFloatClip(clip);
-        } else if (act === 'dup') duplicateSelected();
+          if (typeof isSelected === 'function' && isSelected(MUSIC_ID) && !getSelectedClip()) {
+            showToast('Musiqa float bo\'lmaydi');
+          } else {
+            const clip = getSelectedClip();
+            if (clip) toggleFloatClip(clip);
+            else {
+              const textSel = (state.textClips || []).find(t => t.id === state.selectedClipId || (state.selectedIds && state.selectedIds.has(t.id)));
+              if (textSel) showToast('Text allaqachon overlay (float)');
+            }
+          } else if (act === 'dup') duplicateSelected();
         else if (act === 'del') deleteSelectedClip();
         updateMobileToolbar();
       });

@@ -1,27 +1,22 @@
     // ===================== VIDEO BLOCKS (multi-clip + select + split) =====================
     function renderVideoBlock() {
       videoLane.innerHTML = '';
-      if (!state.videoClips.length) return;
+      if (!state.videoClips.length) {
+        if (typeof syncVideoLaneHeight === 'function') syncVideoLaneHeight();
+        return;
+      }
 
+      if (typeof normalizeClipLaneFlags === 'function') normalizeClipLaneFlags();
       const pitch = getVideoRowHeight();
       if (typeof syncVideoLaneHeight === 'function') syncVideoLaneHeight();
-
-      let maxMain = 0;
-      const floatIds = [];
-      for (const c of state.videoClips) {
-        if (isFloated(c)) floatIds.push(c.id);
-        else maxMain = Math.max(maxMain, clipTrackIndex(c));
-      }
 
       for (const clip of state.videoClips) {
         const left = timeToPx(clip.startTime);
         const width = Math.max(timeToPx(clipDuration(clip)), 24);
+        const track = clipTrackIndex(clip);
+        applyClipTrack(clip, track);
         const floated = isFloated(clip);
-        const track = floated ? 0 : clipTrackIndex(clip);
-        if (!floated) applyClipTrack(clip, track);
-        const row = floated
-          ? (maxMain + 1 + Math.max(0, floatIds.indexOf(clip.id)))
-          : track;
+        const row = track;
 
         const block = document.createElement('div');
         block.className = 'media-block video'
@@ -214,13 +209,6 @@
     }
 
     function clipVisualRow(clip) {
-      let maxMain = 0;
-      const floatIds = [];
-      for (const c of state.videoClips) {
-        if (isFloated(c)) floatIds.push(c.id);
-        else maxMain = Math.max(maxMain, clipTrackIndex(c));
-      }
-      if (isFloated(clip)) return maxMain + 1 + Math.max(0, floatIds.indexOf(clip.id));
       return clipTrackIndex(clip);
     }
 
@@ -239,6 +227,7 @@
         block.style.width = width + 'px';
         block.style.top = (3 + row * pitch) + 'px';
         block.dataset.track = String(track);
+        block.classList.toggle('is-float', isFloated(clip));
         const moving = !!state.isDragging && (
           clip.id === draggingId ||
           (state.dragGroup && state.dragGroup.some(g => g.item && g.item.id === clip.id))
