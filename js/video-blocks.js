@@ -1,5 +1,6 @@
     // ===================== VIDEO BLOCKS (multi-clip + select + split) =====================
     function renderVideoBlock() {
+      if (typeof canvasOnClipsChanged === 'function') canvasOnClipsChanged();
       videoLane.innerHTML = '';
       if (!state.videoClips.length) {
         if (typeof syncVideoLaneHeight === 'function') syncVideoLaneHeight();

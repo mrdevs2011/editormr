@@ -35,6 +35,8 @@
       state.videoClips = [];
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       state.textClips = [];
+      state.canvasRatio = 'fit';
+      if (typeof applyCanvas === 'function') applyCanvas();
       state.clipboard = null;
       state.selectedClipId = null;
       state.selectedIds = new Set();
@@ -228,6 +230,7 @@
         clips,
         music,
         textClips,
+        canvas: state.canvasRatio || 'fit',
         currentTime: state.currentTime,
         pps: state.pixelsPerSecond,
       };
@@ -655,6 +658,7 @@
         state.videoClips = clips;
         if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
         state.textClips = Array.isArray(meta.textClips) ? meta.textClips.map(tc => ({ ...tc })) : [];
+        state.canvasRatio = (typeof canvasValidId === 'function') ? canvasValidId(meta.canvas) : 'fit';
         // Eski saqlangan overlap'larni tuzatish
         if (typeof normalizeVideoOverlaps === 'function') normalizeVideoOverlaps();
         if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
@@ -673,6 +677,7 @@
         }
 
         switchToEditor(true);
+        if (typeof applyCanvas === 'function') applyCanvas();
 
         if (meta.music && sources.has(meta.music.fileId)) {
           const m = meta.music;

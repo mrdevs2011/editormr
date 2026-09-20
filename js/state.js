@@ -9,6 +9,8 @@
       isImage: false,
       filmstrip: null,
 
+      canvasRatio: 'fit',        // canvas nisbati: '9:16' | '1:1' | '16:9' | '4:5' | '3:4' | '2:3' | '2.35:1' | 'fit' (js/canvas.js)
+
       isPlaying: false,
       currentTime: 0,
       pixelsPerSecond: 40,

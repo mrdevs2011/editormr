@@ -8,6 +8,7 @@
         videoClips: state.videoClips.map(c => ({ ...c })),
         music: state.music ? { ...state.music } : null,
         textClips: (state.textClips || []).map(c => ({ ...c })),
+        canvas: state.canvasRatio,
         selectedClipId: state.selectedClipId,
         selectedIds: new Set(state.selectedIds),
       };
@@ -47,6 +48,10 @@
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       state.music = snap.music ? { ...snap.music } : null;
       state.textClips = (snap.textClips || []).map(c => ({ ...c }));
+      if (snap.canvas && typeof applyCanvas === 'function') {
+        state.canvasRatio = snap.canvas;
+        applyCanvas();
+      }
       state.selectedClipId = snap.selectedClipId;
       state.selectedIds = new Set(snap.selectedIds || []);
 

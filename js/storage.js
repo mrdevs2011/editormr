@@ -33,6 +33,7 @@
     const LOCK_KEY_SESSION = '__lockSession';
     const LOCK_KEY_UNTIL = '__lockUntil';
     const LOCK_TTL_MS = 120000;
+    const CANVAS_KEY = '__canvas';   // canvas nisbati (file_names jsonb ichida, alohida ustun/migratsiya kerak emas)
 
     function editorSessionId() {
       try {
@@ -84,6 +85,7 @@
         music: row.music || null,
         currentTime: row.current_time_sec || 0,
         pps: row.pps,
+        canvas: fn[CANVAS_KEY] || null,
         locked: !!(lock.session && lock.until > now && lock.session !== editorSessionId()),
         lockUntil: lock.until,
       };
@@ -173,6 +175,7 @@
       for (const id of removedFileIds) {
         if (!isReservedFileKey(id)) delete fileNames[id];
       }
+      if (meta.canvas) fileNames[CANVAS_KEY] = meta.canvas;
       // Ochiq sessiya lockini saqlab qolamiz
       if (fileNames[LOCK_KEY_SESSION] === editorSessionId()) {
         fileNames[LOCK_KEY_UNTIL] = Date.now() + LOCK_TTL_MS;

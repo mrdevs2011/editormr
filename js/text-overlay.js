@@ -477,7 +477,8 @@
       const tc = getTextClipById(overlaySizeDrag.id);
       if (!tc) return;
       const dy = overlaySizeDrag.startY - e.clientY; // yuqoriga = kattaroq
-      tc.fontSize = Math.max(12, Math.min(120, Math.round(overlaySizeDrag.origSize + dy * 0.4)));
+      const sc = (typeof getCanvasPreviewScale === 'function') ? getCanvasPreviewScale() : 1;
+      tc.fontSize = Math.max(12, Math.min(120, Math.round(overlaySizeDrag.origSize + (dy / sc) * 0.4)));
       updateTextOverlays();
       const bar = document.getElementById('text-float-bar');
       if (bar && bar.classList.contains('is-open')) {
@@ -500,7 +501,10 @@
       el.style.left = ((tc.x != null ? tc.x : 0.5) * 100) + '%';
       el.style.top = ((tc.y != null ? tc.y : 0.85) * 100) + '%';
       el.style.color = tc.color || '#fff';
-      el.style.fontSize = (tc.fontSize || 32) + 'px';
+      // Matn o'lchami export kadr pikselida saqlanadi; preview'da canvas eniga qarab masshtablanadi (preview = export)
+      const sc = (typeof getCanvasPreviewScale === 'function') ? getCanvasPreviewScale() : 1;
+      el.style.fontSize = ((tc.fontSize || 32) * sc) + 'px';
+      el.style.padding = (6 * sc) + 'px ' + (10 * sc) + 'px';
       el.style.fontWeight = tc.bold ? '700' : '400';
       el.style.textAlign = tc.align || 'center';
       const bg = tc.bgColor || '#000000';

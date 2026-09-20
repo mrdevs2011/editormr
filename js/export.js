@@ -27,26 +27,8 @@
       const exportDuration = Math.max(videoEnd, 0.5);
       let exportActiveClipId = null;
 
-      // Chiqish o'lchami
-      let outW = 1280, outH = 720;
-      if (!state.isImage && previewVideo.videoWidth > 0) {
-        outW = previewVideo.videoWidth;
-        outH = previewVideo.videoHeight;
-      } else if (state.isImage) {
-        const imgEl = document.getElementById('image-preview');
-        if (imgEl?.naturalWidth) {
-          outW = imgEl.naturalWidth;
-          outH = imgEl.naturalHeight;
-        }
-      }
-      const maxSide = 1280;
-      if (outW > maxSide || outH > maxSide) {
-        const scale = maxSide / Math.max(outW, outH);
-        outW = Math.round(outW * scale);
-        outH = Math.round(outH * scale);
-      }
-      outW = Math.max(2, outW - (outW % 2));
-      outH = Math.max(2, outH - (outH % 2));
+      // Chiqish o'lchami — tanlangan canvas nisbatidan (js/canvas.js)
+      const { w: outW, h: outH } = getCanvasOutputSize();
 
       // Canvas (DOM ga qo'shamiz — ba'zi brauzerlarda captureStream uchun kerak)
       const canvas = document.createElement('canvas');
@@ -108,7 +90,7 @@
         ctx.save();
         ctx.globalAlpha = alpha != null ? alpha : 1;
         try {
-          ctx.drawImage(el, 0, 0, outW, outH);
+          canvasDrawContain(ctx, el, el.videoWidth, el.videoHeight, 0, 0, outW, outH);
         } catch (_) {}
         ctx.restore();
       }
@@ -344,7 +326,7 @@
               if (imgEl?.complete) {
                 const iw = imgEl.naturalWidth || outW;
                 const ih = imgEl.naturalHeight || outH;
-                const scale = Math.max(outW / iw, outH / ih);
+                const scale = Math.min(outW / iw, outH / ih);   // contain (preview bilan bir xil)
                 const dw = iw * scale, dh = ih * scale;
                 ctx.drawImage(imgEl, (outW - dw) / 2, (outH - dh) / 2, dw, dh);
               }
@@ -376,7 +358,7 @@
               }
               if (exportVideoEl.readyState >= 2) {
                 try {
-                  ctx.drawImage(exportVideoEl, 0, 0, outW, outH);
+                  canvasDrawContain(ctx, exportVideoEl, exportVideoEl.videoWidth, exportVideoEl.videoHeight, 0, 0, outW, outH);
                 } catch (_) {}
               }
             }
@@ -408,12 +390,12 @@
                   exportFloatImgCache.set(fc.url, img);
                 }
                 if (img.complete && img.naturalWidth) {
-                  try { ctx.drawImage(img, padX, padY, fw, fh); } catch (_) {}
+                  try { canvasDrawContain(ctx, img, img.naturalWidth, img.naturalHeight, padX, padY, fw, fh); } catch (_) {}
                 }
               } else if (exportVideoElF) {
                 ensureExportClipOnEl(exportVideoElF, fc, elapsed);
                 if (exportVideoElF.readyState >= 2) {
-                  try { ctx.drawImage(exportVideoElF, padX, padY, fw, fh); } catch (_) {}
+                  try { canvasDrawContain(ctx, exportVideoElF, exportVideoElF.videoWidth, exportVideoElF.videoHeight, padX, padY, fw, fh); } catch (_) {}
                 }
               }
               ctx.restore();
