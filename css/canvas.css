@@ -198,9 +198,9 @@
       stroke-linejoin: round;
       vector-effect: non-scaling-stroke;
     }
-    .cv-frame svg .f {
+    /* Ilova logotiplari — to'ldirilgan (chiziq emas) */
+    .cv-frame svg .logo {
       fill: currentColor;
-      fill-opacity: 0.3;
       stroke: none;
     }
     .cv-card.is-selected .cv-frame { border-color: #b9d6e3; color: #b9d6e3; }
