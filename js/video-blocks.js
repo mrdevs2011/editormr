@@ -113,14 +113,14 @@
           onPointerDown: () => {
             focusClip(clip.id);
             ensurePreviewForClip(clip);
-            renderVideoBlock();
+            if (typeof markClipSelection === 'function') markClipSelection();
           },
           onLongPress: (e) => {
             if (typeof isTouchUi === 'function' && isTouchUi()) return;
             showClipContextMenu(e.clientX, e.clientY, clip.id);
           },
-          onDragStart: (e) => {
-            startDrag(e, 'video', 'move', clip.id);
+          onDragStart: (e, origin) => {
+            startDrag(e, 'video', 'move', clip.id, origin);
           },
         });
         leftHandle.addEventListener('pointerdown', (e) => {
@@ -141,7 +141,7 @@
           e.preventDefault();
           e.stopPropagation();
           focusClip(clip.id);
-          renderVideoBlock();
+          if (typeof markClipSelection === 'function') markClipSelection();
           if (typeof isTouchUi === 'function' && isTouchUi()) return;
           showClipContextMenu(e.clientX, e.clientY, clip.id);
         });
@@ -192,6 +192,72 @@
           toggleTransitionToast(leftClip.id);
         });
         videoLane.appendChild(btn);
+        }
+      }
+    }
+
+    function hideTransitionJunctions() {
+      if (!videoLane) return;
+      videoLane.querySelectorAll('.transition-junction').forEach((el) => el.remove());
+    }
+
+    function markClipSelection() {
+      if (!videoLane) return;
+      videoLane.querySelectorAll('.media-block.video').forEach((el) => {
+        el.classList.toggle('selected', isSelected(el.dataset.clipId));
+      });
+      if (typeof musicLane !== 'undefined' && musicLane) {
+        musicLane.querySelectorAll('.media-block.music').forEach((el) => {
+          el.classList.toggle('selected', isSelected(el.dataset.clipId));
+        });
+      }
+    }
+
+    function clipVisualRow(clip) {
+      let maxMain = 0;
+      const floatIds = [];
+      for (const c of state.videoClips) {
+        if (isFloated(c)) floatIds.push(c.id);
+        else maxMain = Math.max(maxMain, clipTrackIndex(c));
+      }
+      if (isFloated(clip)) return maxMain + 1 + Math.max(0, floatIds.indexOf(clip.id));
+      return clipTrackIndex(clip);
+    }
+
+    function syncDraggingClipPositions() {
+      if (!videoLane) return;
+      const pitch = getVideoRowHeight();
+      const draggingId = state.dragClipId;
+      for (const clip of state.videoClips) {
+        const block = videoLane.querySelector('.media-block.video[data-clip-id="' + clip.id + '"]');
+        if (!block) continue;
+        const left = timeToPx(clip.startTime);
+        const width = Math.max(timeToPx(clipDuration(clip)), 24);
+        const track = isFloated(clip) ? 0 : clipTrackIndex(clip);
+        const row = clipVisualRow(clip);
+        block.style.left = left + 'px';
+        block.style.width = width + 'px';
+        block.style.top = (3 + row * pitch) + 'px';
+        block.dataset.track = String(track);
+        const moving = !!state.isDragging && (
+          clip.id === draggingId ||
+          (state.dragGroup && state.dragGroup.some(g => g.item && g.item.id === clip.id))
+        );
+        block.classList.toggle('is-dragging', moving);
+        if (moving) block.style.zIndex = '20';
+        else block.style.zIndex = '';
+      }
+      if (state.music && typeof musicLane !== 'undefined' && musicLane) {
+        const block = musicLane.querySelector('.media-block.music');
+        if (block) {
+          const visible = state.music.trimEnd - state.music.trimStart;
+          block.style.left = timeToPx(state.music.startTime) + 'px';
+          block.style.width = Math.max(timeToPx(visible), 24) + 'px';
+          const moving = !!state.isDragging && (
+            state.dragTarget === 'music' ||
+            (state.dragGroup && state.dragGroup.some(g => g.item === state.music))
+          );
+          block.classList.toggle('is-dragging', moving);
         }
       }
     }

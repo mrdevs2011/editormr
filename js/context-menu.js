@@ -89,6 +89,7 @@
 
     function showClipContextMenu(x, y, clipId) {
       hideClipContextMenu();
+      if (typeof isTouchUi === 'function' && isTouchUi()) return;
       const clip = getClipById(clipId);
       if (!clip) return;
 
@@ -170,14 +171,8 @@
         btn.textContent = d + 's';
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
-          pushHistory();
-          clip.trimStart = 0;
-          clip.trimEnd = d;
-          clip.duration = d;
+          setImageClipDuration(clip, d);
           hideClipContextMenu();
-          renderVideoBlock();
-          updateTimelineLayout();
-          scheduleSave();
         });
         row.appendChild(btn);
       }
@@ -341,8 +336,24 @@
       menu.appendChild(row);
     }
 
+    function setImageClipDuration(clip, seconds) {
+      if (!clip || !clip.isImage) return;
+      const d = Math.max(0.1, Number(seconds) || 1);
+      const cur = Math.max(0.1, (clip.trimEnd || 5) - (clip.trimStart || 0));
+      if (Math.abs(cur - d) < 0.05) return;
+      pushHistory();
+      clip.trimStart = 0;
+      clip.trimEnd = d;
+      clip.duration = d;
+      renderVideoBlock();
+      updateTimelineLayout();
+      if (typeof updateMobileToolbar === 'function') updateMobileToolbar();
+      scheduleSave();
+    }
+
     function showMusicContextMenu(x, y) {
       hideClipContextMenu();
+      if (typeof isTouchUi === 'function' && isTouchUi()) return;
       if (!state.music) return;
       const menu = document.createElement('div');
       menu.className = 'clip-context-menu';

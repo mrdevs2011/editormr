@@ -137,8 +137,8 @@
         onLongPress: (e) => {
           showMusicContextMenu(e.clientX, e.clientY);
         },
-        onDragStart: (e) => {
-          startDrag(e, 'music', 'move');
+        onDragStart: (e, origin) => {
+          startDrag(e, 'music', 'move', null, origin);
         },
       });
       leftHandle.addEventListener('pointerdown', (e) => {

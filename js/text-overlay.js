@@ -94,6 +94,7 @@
             updateTextOverlays();
           },
           onLongPress: (e) => {
+            if (typeof isTouchUi === 'function' && isTouchUi()) return;
             showTextContextMenu(e.clientX, e.clientY, tc.id);
           },
           onDragStart: (e) => {
@@ -118,6 +119,7 @@
     }
 
     function showTextContextMenu(x, y, textId) {
+      if (typeof isTouchUi === 'function' && isTouchUi()) return;
       if (typeof hideClipContextMenu === 'function') hideClipContextMenu();
       const existing = document.getElementById('clip-context-menu');
       if (existing && existing.parentNode) existing.parentNode.removeChild(existing);

@@ -486,26 +486,93 @@
     }
 
 
-    /* Mobile floating action bar — only touch / coarse pointer */
+    /* Mobile floating action bar — telefon / planshet. Desktop menyu emas. */
     .mobile-action-bar {
       display: none;
     }
 
-    @media (pointer: coarse) {
+    html.is-touch-ui .clip-context-menu {
+      display: none !important;
+    }
+
+    @media (pointer: coarse), (hover: none) {
       .mobile-action-bar {
         display: flex;
+        flex-direction: column;
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
-        height: 52px;
+        height: auto;
         background: #1a1c20;
         border-top: 1px solid #2a2d33;
-        justify-content: space-around;
-        align-items: center;
+        justify-content: flex-end;
+        align-items: stretch;
         z-index: 200;
         padding-bottom: env(safe-area-inset-bottom, 0px);
         box-sizing: content-box;
+      }
+
+      .mobile-action-bar[hidden] {
+        display: none !important;
+      }
+
+      .mob-bar-actions {
+        display: flex;
+        height: 52px;
+        width: 100%;
+        justify-content: space-around;
+        align-items: center;
+      }
+
+      .mob-duration-row {
+        display: flex;
+        height: 40px;
+        width: 100%;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 10px;
+        border-bottom: 1px solid #2a2d33;
+        box-sizing: border-box;
+      }
+
+      .mob-duration-row[hidden] {
+        display: none !important;
+      }
+
+      .mob-duration-label {
+        font-size: 11px;
+        color: #9aa1aa;
+        flex-shrink: 0;
+      }
+
+      .mob-duration-btns {
+        display: flex;
+        gap: 6px;
+      }
+
+      .mob-dur-btn {
+        min-width: 40px;
+        height: 28px;
+        border: 1px solid #3a3f46;
+        background: #23262b;
+        color: #d5d9de;
+        border-radius: 8px;
+        font-size: 12px;
+        font-family: inherit;
+        padding: 0 8px;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      .mob-dur-btn.active {
+        background: #5d95ad;
+        border-color: #5d95ad;
+        color: #0d1114;
+      }
+
+      .mob-dur-btn:active {
+        transform: scale(0.97);
       }
 
       .mob-btn.is-off,
@@ -569,8 +636,41 @@
         opacity: 0.3;
       }
 
-      /* Timeline pastki padding — bar ostida qolmasin */
+      /* Timeline pastki padding — bar + duration qatori ostida qolmasin */
       #editor-screen .timeline-section {
-        padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(52px + var(--mob-dur-h, 0px) + env(safe-area-inset-bottom, 0px));
       }
+    }
+
+    html.is-touch-ui .mobile-action-bar:not([hidden]) {
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: auto;
+      background: #1a1c20;
+      border-top: 1px solid #2a2d33;
+      z-index: 200;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      box-sizing: content-box;
+    }
+
+    html.is-touch-ui .mob-bar-actions {
+      display: flex;
+      height: 52px;
+      width: 100%;
+      justify-content: space-around;
+      align-items: center;
+    }
+
+    html.is-touch-ui #undo-btn,
+    html.is-touch-ui #redo-btn,
+    html.is-touch-ui .tool-sep-history {
+      display: none;
+    }
+
+    html.is-touch-ui #editor-screen .timeline-section {
+      padding-bottom: calc(52px + var(--mob-dur-h, 0px) + env(safe-area-inset-bottom, 0px));
     }

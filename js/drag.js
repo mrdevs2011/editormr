@@ -145,16 +145,27 @@
       }
     }
 
-    function startDrag(e, target, type, clipId) {
-      e.preventDefault();
+    let _dragRaf = 0;
+    let _dragLastEv = null;
+
+    function startDrag(e, target, type, clipId, origin) {
+      if (e && e.cancelable) e.preventDefault();
+      if (_dragRaf) {
+        cancelAnimationFrame(_dragRaf);
+        _dragRaf = 0;
+      }
+      _dragLastEv = null;
       pushHistory();
       state.isDragging = true;
       state.dragTarget = target;
       state.dragType = type;
       state.dragClipId = clipId || null;
-      state.dragStartX = e.clientX;
-      state.dragStartY = e.clientY;
-      timeRuler.classList.add('hide-ticks');
+      const ox = origin && origin.x != null ? origin.x : e.clientX;
+      const oy = origin && origin.y != null ? origin.y : e.clientY;
+      state.dragStartX = ox;
+      state.dragStartY = oy;
+      if (timeRuler) timeRuler.classList.add('hide-ticks');
+      document.body.classList.add('is-clip-dragging');
 
       if (target === 'video') {
         const clip = getClipById(clipId) || getSelectedClip() || state.videoClips[0];
@@ -197,31 +208,49 @@
         }
       }
 
-      document.addEventListener('pointermove', onDrag);
+      if (typeof hideTransitionJunctions === 'function') hideTransitionJunctions();
+
+      try {
+        if (e && e.target && e.pointerId != null) e.target.setPointerCapture(e.pointerId);
+      } catch (_) {}
+
+      document.addEventListener('pointermove', onDrag, { passive: false });
       document.addEventListener('pointerup', endDrag);
+      document.addEventListener('pointercancel', endDrag);
     }
 
     function onDrag(e) {
       if (!state.isDragging) return;
+      if (e.cancelable) e.preventDefault();
+      _dragLastEv = e;
+      if (_dragRaf) return;
+      _dragRaf = requestAnimationFrame(applyDragFrame);
+    }
+
+    function applyDragFrame() {
+      _dragRaf = 0;
+      const e = _dragLastEv;
+      if (!e || !state.isDragging) return;
       const dx = e.clientX - state.dragStartX;
       const dy = e.clientY - state.dragStartY;
       const dt = pxToTime(dx);
       const pitch = getVideoRowHeight();
-      const dTrack = Math.round(dy / pitch);
+      const dTrack = Math.round(dy / Math.max(1, pitch));
 
       if (state.dragGroup) {
-        const resolved = resolveGroupDelta(state.dragGroup, dt, dTrack);
+        const minStart = Math.min(...state.dragGroup.map(g => g.start));
+        const dtClamped = Math.max(dt, -minStart);
         for (const g of state.dragGroup) {
-          g.item.startTime = Math.max(0, g.start + resolved.dt);
+          g.item.startTime = Math.max(0, g.start + dtClamped);
           if (state.videoClips.some(c => c.id === g.item.id)) {
-            applyClipTrack(g.item, (g.track || 0) + resolved.dTrack);
+            applyClipTrack(g.item, (g.track || 0) + dTrack);
           } else {
-            // Musiqa o'z trekidan chiqmasin
             g.item.offsetY = 0;
           }
         }
         if (typeof syncVideoLaneHeight === 'function') syncVideoLaneHeight();
-        updateTimelineLayout();
+        if (typeof syncDraggingClipPositions === 'function') syncDraggingClipPositions();
+        stretchTimelineForDrag();
         return;
       }
 
@@ -229,68 +258,65 @@
         const clip = getClipById(state.dragClipId);
         if (!clip) return;
         if (state.dragType === 'move') {
-          const desired = Math.max(0, state.dragOrigStart + dt);
-          if (isFloated(clip)) {
-            clip.startTime = desired;
-          } else {
-            const desiredTrack = (state.dragOrigTrack || 0) + dTrack;
-            const place = resolveVideoPlacement(clip, desired, desiredTrack);
-            clip.startTime = place.start;
-            applyClipTrack(clip, place.track);
+          clip.startTime = Math.max(0, state.dragOrigStart + dt);
+          if (!isFloated(clip)) {
+            applyClipTrack(clip, (state.dragOrigTrack || 0) + dTrack);
           }
         } else if (state.dragType === 'trim-left') {
           let newTrimStart = state.dragOrigTrimStart + dt;
           newTrimStart = Math.max(0, Math.min(newTrimStart, clip.trimEnd - 0.15));
           const delta = newTrimStart - state.dragOrigTrimStart;
           clip.trimStart = newTrimStart;
-          clip.startTime = state.dragOrigStart + delta;
-          if (!isFloated(clip)) {
-            clip.startTime = resolveVideoStartTimeOnTrack(clip, clip.startTime, clipTrackIndex(clip));
-          }
+          clip.startTime = Math.max(0, state.dragOrigStart + delta);
         } else if (state.dragType === 'trim-right') {
           let newTrimEnd = state.dragOrigTrimEnd + dt;
           const maxDur = clip.duration || state.videoDuration || 9999;
           newTrimEnd = Math.max(clip.trimStart + 0.15, Math.min(newTrimEnd, maxDur));
-          const proposedEnd = clip.startTime + (newTrimEnd - clip.trimStart) / ((clip.speed && clip.speed > 0) ? clip.speed : 1);
-          const myTrack = clipTrackIndex(clip);
-          for (const other of state.videoClips) {
-            if (other.id === clip.id) continue;
-            if (isFloated(clip) || isFloated(other)) continue;
-            if (clipTrackIndex(other) !== myTrack) continue;
-            if (clipsTimeOverlap(clip.startTime, proposedEnd, other.startTime, clipEnd(other))) {
-              const maxEnd = other.startTime;
-              const maxTimelineDur = Math.max(0.15, maxEnd - clip.startTime);
-              const sp = (clip.speed && clip.speed > 0) ? clip.speed : 1;
-              newTrimEnd = clip.trimStart + maxTimelineDur * sp;
-              break;
-            }
-          }
-          clip.trimEnd = Math.max(clip.trimStart + 0.15, newTrimEnd);
+          clip.trimEnd = newTrimEnd;
         }
-        renderVideoBlock();
       } else if (state.dragTarget === 'music' && state.music) {
         if (state.dragType === 'move') {
           state.music.startTime = Math.max(0, state.dragOrigStart + dt);
-          state.music.offsetY = 0; // musiqa trekidan tashqariga chiqmasin
+          state.music.offsetY = 0;
         } else if (state.dragType === 'trim-left') {
           let newTrimStart = state.dragOrigTrimStart + dt;
           newTrimStart = Math.max(0, Math.min(newTrimStart, state.music.trimEnd - 0.1));
           const delta = newTrimStart - state.dragOrigTrimStart;
           state.music.trimStart = newTrimStart;
-          state.music.startTime = state.dragOrigStart + delta;
+          state.music.startTime = Math.max(0, state.dragOrigStart + delta);
         } else if (state.dragType === 'trim-right') {
           let newTrimEnd = state.dragOrigTrimEnd + dt;
           newTrimEnd = Math.max(state.music.trimStart + 0.1, Math.min(newTrimEnd, state.music.duration));
           state.music.trimEnd = newTrimEnd;
         }
-        renderMusicBlock();
       }
 
       if (typeof syncVideoLaneHeight === 'function') syncVideoLaneHeight();
-      updateTimelineLayout();
+      if (typeof syncDraggingClipPositions === 'function') syncDraggingClipPositions();
+      stretchTimelineForDrag();
+    }
+
+    function stretchTimelineForDrag() {
+      if (!timelineContent || !timelineScroll) return;
+      const totalDuration = Math.max(
+        typeof videoTimelineEnd === 'function' ? videoTimelineEnd() : 0,
+        state.music ? state.music.startTime + (state.music.trimEnd - state.music.trimStart) : 0,
+        typeof textTimelineEnd === 'function' ? textTimelineEnd() : 0,
+        2
+      ) + 2;
+      const contentWidth = Math.max(timelineScroll.clientWidth - 16, timeToPx(totalDuration));
+      timelineContent.style.width = contentWidth + 'px';
     }
 
     function endDrag() {
+      if (_dragRaf) {
+        cancelAnimationFrame(_dragRaf);
+        _dragRaf = 0;
+        if (_dragLastEv) applyDragFrame();
+      }
+      _dragLastEv = null;
+      document.body.classList.remove('is-clip-dragging');
+
       // Bo'sh drag — undo stack'ni ifloslantirmaslik
       let changed = false;
       if (state.dragGroup) {
@@ -358,6 +384,7 @@
       timeRuler.classList.remove('hide-ticks');
       document.removeEventListener('pointermove', onDrag);
       document.removeEventListener('pointerup', endDrag);
+      document.removeEventListener('pointercancel', endDrag);
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       if (typeof renderVideoBlock === 'function') renderVideoBlock();
       if (typeof updateTimelineLayout === 'function') updateTimelineLayout();

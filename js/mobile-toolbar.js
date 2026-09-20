@@ -1,24 +1,20 @@
     // ===================== MOBILE ACTION BAR =====================
-    function isTouchUi() {
-      try {
-        return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-      } catch (_) {
-        return false;
-      }
-    }
-
     function updateMobileToolbar() {
       const bar = document.getElementById('mobile-action-bar');
       if (!bar) return;
 
-      const hasVideo = !!getSelectedClip();
+      const touch = typeof isTouchUi === 'function' ? isTouchUi() : false;
+      bar.hidden = !touch;
+      bar.setAttribute('aria-hidden', touch ? 'false' : 'true');
+
+      const clip = getSelectedClip();
+      const hasVideo = !!clip;
       const hasAnySelected = (state.selectedIds && state.selectedIds.size > 0) || !!state.selectedClipId;
       const hasClipboard = !!(state.clipboard && state.clipboard.data);
       const canSplit = (() => {
-        const c = getSelectedClip();
-        if (!c) return false;
+        if (!clip) return false;
         const t = state.currentTime;
-        return t > c.startTime + 0.05 && t < clipEnd(c) - 0.05;
+        return t > clip.startTime + 0.05 && t < clipEnd(clip) - 0.05;
       })();
 
       const desktopUndo = document.getElementById('undo-btn');
@@ -39,6 +35,28 @@
         if (btn.dataset.act === 'split') btn.disabled = !canSplit;
         else btn.disabled = !show;
       });
+
+      const floatBtn = bar.querySelector('[data-act="float"]');
+      if (floatBtn) {
+        const floated = !!(clip && clip.floated);
+        const label = floatBtn.querySelector('span');
+        if (label) label.textContent = floated ? 'Unfloat' : 'Float';
+        floatBtn.title = floated ? 'Qatorga qaytarish' : 'Float';
+      }
+
+      const durRow = document.getElementById('mob-duration-row');
+      const showDur = !!(touch && clip && clip.isImage);
+      if (durRow) {
+        durRow.hidden = !showDur;
+        if (showDur) {
+          const cur = Math.max(0.1, (clip.trimEnd || 5) - (clip.trimStart || 0));
+          durRow.querySelectorAll('.mob-dur-btn').forEach((btn) => {
+            const d = Number(btn.getAttribute('data-dur'));
+            btn.classList.toggle('active', Math.abs(cur - d) < 0.05);
+          });
+        }
+      }
+      bar.style.setProperty('--mob-dur-h', showDur ? '40px' : '0px');
     }
 
     function initMobileToolbar() {
@@ -46,6 +64,15 @@
       if (!bar) return;
 
       bar.addEventListener('click', (e) => {
+        const durBtn = e.target.closest('.mob-dur-btn');
+        if (durBtn) {
+          const clip = getSelectedClip();
+          if (clip && typeof setImageClipDuration === 'function') {
+            setImageClipDuration(clip, durBtn.getAttribute('data-dur'));
+          }
+          return;
+        }
+
         const btn = e.target.closest('.mob-btn');
         if (!btn || btn.disabled) return;
         const act = btn.dataset.act;

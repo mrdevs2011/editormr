@@ -7,6 +7,43 @@
       whiteDeep: '#1d2f38',   // musiqa waveform foni
     };
 
+    // Telefon / planshet: context-menu yo'q. Desktop (sichqoncha) da qoladi.
+    function isTouchUi() {
+      try {
+        if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+        if (window.matchMedia && window.matchMedia('(hover: none)').matches) return true;
+        const tp = navigator.maxTouchPoints || 0;
+        const ua = navigator.userAgent || '';
+        if (/iPad/i.test(ua)) return true;
+        if (navigator.platform === 'MacIntel' && tp > 1) return true; // iPadOS desktop mode
+        if (/Android/i.test(ua) && !/Mobile/i.test(ua)) return true;
+        if (tp > 0 && Math.min(window.innerWidth, window.innerHeight) <= 1024) return true;
+        return false;
+      } catch (_) {
+        return ('ontouchstart' in window);
+      }
+    }
+
+    function isDesktopUi() {
+      return !isTouchUi();
+    }
+
+    function syncTouchUiClass() {
+      const touch = isTouchUi();
+      document.documentElement.classList.toggle('is-touch-ui', touch);
+      if (document.body) document.body.classList.toggle('is-touch-ui', touch);
+      if (typeof updateMobileToolbar === 'function') updateMobileToolbar();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncTouchUiClass);
+    } else {
+      syncTouchUiClass();
+    }
+    window.addEventListener('resize', syncTouchUiClass);
+    window.addEventListener('orientationchange', syncTouchUiClass);
+
+
     // Blob URL registry — memory leak kamaytirish
     const _objectUrls = new Set();
     function trackObjectUrl(url) {
@@ -552,10 +589,10 @@
       return ok;
     }
 
-    // Touch long-press (context menu) + delayed drag
+    // Touch: darhol surish. Desktop: long-press menyu (lekin drag 6px dan keyin).
     function attachLongPress(el, opts) {
       const delay = opts.delay != null ? opts.delay : 500;
-      const threshold = opts.threshold != null ? opts.threshold : 8;
+      const threshold = opts.threshold != null ? opts.threshold : 6;
       const onLongPress = opts.onLongPress;
       const onDragStart = opts.onDragStart;
       const shouldSkip = opts.shouldSkip || (() => false);
@@ -582,13 +619,14 @@
 
       function onMove(ev) {
         if (pointerId != null && ev.pointerId !== pointerId) return;
+        if (ev.cancelable) ev.preventDefault();
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         if (Math.hypot(dx, dy) > threshold) {
           clearTimer();
           if (!longFired && !dragStarted && onDragStart) {
             dragStarted = true;
-            onDragStart(ev);
+            onDragStart(ev, { x: startX, y: startY, pointerId: pointerId });
           }
         }
       }
@@ -606,14 +644,19 @@
         startX = e.clientX;
         startY = e.clientY;
         pointerId = e.pointerId;
+        if (e.cancelable) e.preventDefault();
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
         if (opts.onPointerDown) opts.onPointerDown(e);
         clearTimer();
-        timer = setTimeout(() => {
-          timer = null;
-          longFired = true;
-          if (onLongPress) onLongPress(e);
-        }, delay);
-        document.addEventListener('pointermove', onMove);
+        const allowMenu = typeof isTouchUi === 'function' ? !isTouchUi() : true;
+        if (allowMenu && onLongPress) {
+          timer = setTimeout(() => {
+            timer = null;
+            longFired = true;
+            onLongPress(e);
+          }, delay);
+        }
+        document.addEventListener('pointermove', onMove, { passive: false });
         document.addEventListener('pointerup', onUp);
         document.addEventListener('pointercancel', onUp);
       });

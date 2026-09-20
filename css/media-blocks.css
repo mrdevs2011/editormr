@@ -48,9 +48,24 @@
       filter: brightness(1.08);
     }
 
-    .media-block:active {
+    .media-block.is-dragging {
       cursor: grabbing;
+      opacity: 0.92;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+      filter: brightness(1.08);
+      z-index: 20;
     }
+
+    body.is-clip-dragging {
+      cursor: grabbing;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body.is-clip-dragging .timeline-scroll {
+      overflow: hidden;
+    }
+
 
     .media-block.video {
       background: #1a2735;

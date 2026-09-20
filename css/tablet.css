@@ -429,12 +429,30 @@
 
       /* ---------- 5. Pastki action-bar ---------- */
       .mobile-action-bar {
-        height: var(--tab-bar-h);
-        justify-content: center;
-        gap: 14px;
+        height: auto;
+        justify-content: flex-end;
+        gap: 0;
         padding-left: env(safe-area-inset-left, 0px);
         padding-right: env(safe-area-inset-right, 0px);
         padding-bottom: var(--tab-safe-b);
+      }
+
+      .mob-bar-actions {
+        height: var(--tab-bar-h);
+        gap: 14px;
+        justify-content: center;
+      }
+
+      .mob-duration-row {
+        height: 44px;
+        gap: 10px;
+      }
+
+      .mob-dur-btn {
+        min-width: 48px;
+        height: 32px;
+        font-size: 13px;
+        border-radius: 10px;
       }
 
       .mob-btn {
@@ -455,7 +473,12 @@
       }
 
       #editor-screen .timeline-section {
-        padding-bottom: calc(var(--tab-bar-h) + var(--tab-safe-b));
+        padding-bottom: calc(var(--tab-bar-h) + var(--mob-dur-h, 0px) + var(--tab-safe-b));
+      }
+
+      /* Context-menu faqat desktop. Planshetda ko'rinmasin. */
+      html.is-touch-ui .clip-context-menu {
+        display: none !important;
       }
 
       /* ---------- 6. Panellar ---------- */
