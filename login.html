@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Sign in · EditorMR</title>
+  <meta name="theme-color" content="#191d22" />
+  <link rel="icon" href="favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="stylesheet" href="css/login.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="top">
+      <img class="logo" src="assets/logo-mark.png" alt="EMR" />
+      <span class="product">Editor</span>
+    </header>
+
+    <main class="main">
+      <!-- ===== LEFT: sign in ===== -->
+      <section class="left">
+        <h1>Empower Your Content: <br />The Next Chapter</h1>
+        <p class="sub">Your precision editing platform for professional clarity</p>
+
+        <div class="card" id="card">
+          <button class="btn btn-ghost" id="google-btn" type="button">
+            <svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+              </svg>
+            <span class="label">Sign in with Google</span>
+            <span class="spin" aria-hidden="true"></span>
+          </button>
+
+          <p class="msg" id="msg" role="alert" hidden></p>
+          <p class="terms">By continuing, you agree to the EMR Editor <a href="terms.html">Terms of Service</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+        </div>
+
+        <!-- faqat Supabase kalitlari qo'yilmaguncha ko'rinadi -->
+        <div class="dev-note" id="dev-note" hidden>
+          <b>Supabase is not configured yet.</b>
+          Add your keys in <code>js/supabase-config.js</code>.
+          <a href="index.html">Continue without account &rarr;</a>
+        </div>
+      </section>
+
+      <!-- ===== RIGHT: product showcase (CSS mock, rasm emas) ===== -->
+      <aside class="showcase" aria-hidden="true">
+        <div class="mock">
+          <div class="mock-bar"><i></i><i></i><i></i><span>EditorMR</span></div>
+          <!-- video butun oyna ichini to'ldiradi (editor yozuvi: preview + timeline) -->
+          <div class="mock-screen">
+            <video class="mock-video" id="mock-video" src="assets/login-pingpong.mp4" muted loop autoplay playsinline preload="auto"></video>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="js/vendor/supabase.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/login.js"></script>
+  <script>
+    // Bitta uzluksiz "oldinga-orqaga" video (loop). Ba'zi brauzerlar autoplay'ni
+    // bloklasa (masalan Low Power Mode), birinchi teginishda ishga tushiramiz.
+    (function () {
+      var v = document.getElementById('mock-video');
+      if (!v) return;
+      var evs = ['pointerdown', 'touchstart', 'keydown'];
+      function start() {
+        var p = v.play();
+        if (p && p.catch) p.catch(function () {});
+      }
+      function retry() {
+        if (v.paused) start();
+        evs.forEach(function (t) { document.removeEventListener(t, retry); });
+      }
+      start();
+      evs.forEach(function (t) { document.addEventListener(t, retry, { passive: true }); });
+    })();
+  </script>
+</body>
+</html>

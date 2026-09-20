@@ -1,0 +1,131 @@
+    .timeline-section {
+      height: 50vh;
+      min-height: 1vh;
+      max-height: 100vh;
+      background: #131416;
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid #202226;
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .timeline-resize-handle {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      cursor: ns-resize;
+      z-index: 40;
+      background: transparent;
+      touch-action: none;
+    }
+
+    .timeline-resize-handle:hover,
+    .timeline-resize-handle.dragging {
+      background: var(--brand-blue);
+    }
+
+    .timeline-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1px 5px;
+      background: #151619;
+      flex-shrink: 0;
+      gap: 3px;
+      height: 20px;
+      border-bottom: 1px solid #1c1e21;
+    }
+
+    .timeline-header-left {
+      display: flex;
+      align-items: center;
+      font-size: 0.65rem;
+      color: #4f555f;
+      min-width: 50px;
+    }
+
+    .timeline-header-right {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin-left: auto;
+    }
+
+    .zoom-btn {
+      width: 18px;
+      height: 18px;
+      border-radius: 2px;
+      border: none;
+      background: transparent;
+      color: #4f555f;
+      cursor: pointer;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .zoom-btn:hover {
+      background: #202226;
+      color: #aaa;
+    }
+
+    .zoom-btn svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+    }
+
+    .zoom-label {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 9px;
+      color: #40444c;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    .export-btn {
+      width: 20px;
+      height: 18px;
+      padding: 0;
+      border-radius: 2px;
+      background: transparent;
+      border: 1px solid #303339;
+      color: var(--brand-blue);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .export-btn:hover {
+      background: var(--brand-blue-deep);
+      border-color: var(--brand-blue-dim);
+      color: var(--brand-white);
+    }
+
+    .export-btn svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .timeline-scroll {
+      flex: 1;
+      overflow-x: auto;
+      overflow-y: auto; /* vertical scroll yoqildi */
+      position: relative;
+      background: #111214;
+      min-height: 0;
+    }
+
