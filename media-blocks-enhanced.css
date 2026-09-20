@@ -1,0 +1,202 @@
+/* ===================== ENHANCED PLAYHEAD STYLES ===================== */
+
+/* Playhead — oq vertikal chiziq, header'dan surg'anda smooth */
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px; /* Biroz kaltiroq, drag qilish oson bo'lsin */
+  background: var(--brand-white);
+  z-index: 50;
+  pointer-events: auto;
+  cursor: ew-resize;
+  touch-action: none;
+  transition: left 0.016s linear; /* Smooth realtime movement */
+  left: 8px;
+}
+
+/* Playhead header — bo'lak drag handle (oq chiziq yuqorida) */
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 12px;
+  height: 20px;
+  background: var(--brand-white);
+  border-radius: 2px 2px 0 0;
+  z-index: 51;
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.playhead.dragging::before {
+  cursor: grabbing;
+  background: var(--brand-blue);
+}
+
+.playhead:active::before {
+  background: var(--brand-blue);
+}
+
+/* Playhead inactive state — content joydan chiqsa dim qil */
+.playhead.all-content-inactive {
+  opacity: 0.4;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.playhead.all-content-inactive::before {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ===================== INACTIVE CONTENT STYLING ===================== */
+
+/* Media block inactive */
+.media-block.inactive {
+  opacity: 0.4;
+  background: rgba(100, 100, 100, 0.2) !important;
+  border-color: rgba(100, 100, 100, 0.4) !important;
+  pointer-events: none; /* Drag qilish mumkin emas */
+}
+
+/* Track inactive */
+.track.inactive {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.track.inactive .track-lane {
+  background: rgba(20, 20, 20, 0.6);
+}
+
+/* Text block inactive */
+.text-block.inactive {
+  opacity: 0.4;
+  background: rgba(100, 100, 100, 0.2) !important;
+  border-color: rgba(100, 100, 100, 0.4) !important;
+  pointer-events: none;
+}
+
+/* ===================== TIMELINE CONTENT BOUNDS ===================== */
+
+/* Agar content data'dan chiqsa, timeline scroll ko'rsat */
+.timeline-content.content-out-of-bounds::after {
+  content: "Content out of bounds";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 100, 100, 0.7);
+  font-size: 12px;
+  z-index: 45;
+  pointer-events: none;
+}
+
+/* ===================== RULER IMPROVEMENTS ===================== */
+
+/* Time ruler — sekundlar qatori, click-friendly */
+.time-ruler {
+  position: relative;
+  height: 20px;
+  background: #0d0f13;
+  border-bottom: 1px solid #202226;
+  display: flex;
+  align-items: flex-end;
+}
+
+.ruler-tick {
+  position: absolute;
+  bottom: 0;
+  font-size: 9px;
+  color: #6b7280;
+  padding: 2px 3px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.ruler-tick:hover {
+  color: var(--brand-white);
+  background: rgba(100, 150, 255, 0.15);
+  border-radius: 2px;
+}
+
+/* Time ruler hide-ticks (drag vaqtida) */
+.time-ruler.hide-ticks .ruler-tick {
+  opacity: 0.3;
+}
+
+/* ===================== SMOOTH DRAG VISUAL FEEDBACK ===================== */
+
+/* Drag bo'lganda timeline cursor va feedback */
+.timeline-scroll.playhead-dragging {
+  user-select: none;
+  cursor: grabbing;
+}
+
+/* Responsive playhead width — mobile'da kattaroq */
+@media (max-width: 600px) {
+  .playhead {
+    width: 3px;
+  }
+
+  .playhead::before {
+    width: 16px;
+    height: 24px;
+    left: -7px;
+  }
+
+  .ruler-tick {
+    font-size: 8px;
+    padding: 1px 2px;
+  }
+}
+
+@media (max-width: 400px) {
+  .playhead {
+    width: 2px;
+  }
+
+  .playhead::before {
+    display: none; /* Mobile'da header yashir */
+  }
+
+  .ruler-tick {
+    font-size: 7px;
+    padding: 1px;
+  }
+}
+
+/* ===================== ANIMATION & TRANSITION ===================== */
+
+/* Playhead smooth movement animation */
+@keyframes playhead-drag {
+  0% {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+  }
+}
+
+.playhead.dragging {
+  animation: playhead-drag 0.3s ease-in-out;
+}
+
+/* Inactive content fade animation */
+@keyframes fade-inactive {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+
+.media-block.inactive {
+  animation: fade-inactive 0.3s ease-in-out forwards;
+}
