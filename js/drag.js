@@ -74,15 +74,6 @@
         };
       }
 
-      for (let dist = 1; dist <= MAX_VIDEO_TRACKS; dist++) {
-        for (const t of [desiredTrack - dist, desiredTrack + dist]) {
-          if (t < 1 || t >= MAX_VIDEO_TRACKS) continue;
-          if (trackSlotFree(t, desiredStart, desiredStart + dur, excludeIds)) {
-            return { start: desiredStart, track: t };
-          }
-        }
-      }
-
       return {
         start: resolveVideoStartTimeOnTrack(clip, desiredStart, desiredTrack, excludeIds),
         track: desiredTrack,
@@ -170,6 +161,7 @@
       const oy = origin && origin.y != null ? origin.y : e.clientY;
       state.dragStartX = ox;
       state.dragStartY = oy;
+      state.dragPitch = getVideoRowHeight();
       if (timeRuler) timeRuler.classList.add('hide-ticks');
       document.body.classList.add('is-clip-dragging');
 
@@ -240,8 +232,8 @@
       const dx = e.clientX - state.dragStartX;
       const dy = e.clientY - state.dragStartY;
       const dt = pxToTime(dx);
-      const pitch = getVideoRowHeight();
-      const dTrack = Math.round(dy / Math.max(1, pitch));
+      const pitch = state.dragPitch || getVideoRowHeight();
+      const dTrack = Math.round(dy / Math.max(24, pitch));
 
       if (state.dragGroup) {
         const minStart = Math.min(...state.dragGroup.map(g => g.start));
@@ -265,9 +257,7 @@
         if (!clip) return;
         if (state.dragType === 'move') {
           clip.startTime = Math.max(0, state.dragOrigStart + dt);
-          if (!isFloated(clip)) {
-            applyClipTrack(clip, (state.dragOrigTrack || 0) + dTrack);
-          }
+          applyClipTrack(clip, (state.dragOrigTrack || 0) + dTrack);
         } else if (state.dragType === 'trim-left') {
           let newTrimStart = state.dragOrigTrimStart + dt;
           newTrimStart = Math.max(0, Math.min(newTrimStart, clip.trimEnd - 0.15));
@@ -402,6 +392,7 @@
       state.dragType = null;
       state.dragClipId = null;
       state.dragGroup = null;
+      state.dragPitch = null;
       scheduleSave();
       timeRuler.classList.remove('hide-ticks');
       document.removeEventListener('pointermove', onDrag);

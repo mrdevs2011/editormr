@@ -97,19 +97,6 @@
     const MAX_VIDEO_TRACKS = 32;
 
     function getVideoRowHeight() {
-      const lane = (typeof videoLane !== 'undefined' && videoLane)
-        ? videoLane
-        : document.getElementById('video-lane');
-      if (lane) {
-        const block = lane.querySelector('.media-block.video');
-        if (block) {
-          const h = block.getBoundingClientRect().height;
-          if (h > 8) return Math.max(22, Math.round(h + 6));
-        }
-        const cs = window.getComputedStyle(lane);
-        const cssH = parseFloat(cs.minHeight) || parseFloat(cs.height);
-        if (cssH > 8) return Math.max(22, Math.round(cssH));
-      }
       if (window.innerWidth <= 640) return 40;
       return 28;
     }
@@ -151,7 +138,7 @@
     }
 
     function visibleVideoRows() {
-      return Math.max(MIN_VIDEO_TRACKS, usedVideoTracks() + 2);
+      return Math.max(MIN_VIDEO_TRACKS, usedVideoTracks() + 1);
     }
 
     function findFreeFloatTrack(clip, start, excludeIds) {
