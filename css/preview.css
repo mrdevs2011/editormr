@@ -537,7 +537,7 @@
     .export-ui-card {
       --p: 0;
       pointer-events: auto;
-      width: min(268px, calc(100vw - 24px));
+      width: min(300px, calc(100vw - 24px));
       background: #121417;
       color: #e8eaed;
       border: 1px solid #2c3138;
@@ -546,6 +546,38 @@
       box-shadow: 0 18px 50px rgba(0,0,0,0.55);
       font-family: ui-sans-serif, system-ui, sans-serif;
       position: relative;
+    }
+    .export-ui-banner {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #2a2216;
+      color: #e8c48a;
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+    .export-ui-settings { margin-top: 10px; }
+    .export-ui-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: #c5cbd3;
+    }
+    .export-ui-row.export-ui-col { flex-direction: column; gap: 4px; }
+    .export-ui-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .export-ui-note {
+      margin: 8px 0 0;
+      font-size: 0.68rem;
+      color: #8b919a;
+      line-height: 1.35;
+    }
+    .export-ui-eta {
+      margin-top: 6px;
+      font-size: 0.72rem;
+      color: #8b919a;
+      min-height: 1em;
     }
     .export-ui-x {
       position: absolute;
@@ -709,7 +741,11 @@
     .export-ui-overlay.is-mini .export-ui-copy,
     .export-ui-overlay.is-mini .export-ui-bar,
     .export-ui-overlay.is-mini .export-ui-actions,
-    .export-ui-overlay.is-mini .export-ui-status {
+    .export-ui-overlay.is-mini .export-ui-status,
+    .export-ui-overlay.is-mini .export-ui-banner,
+    .export-ui-overlay.is-mini .export-ui-settings,
+    .export-ui-overlay.is-mini .export-ui-eta {
+
       display: none;
     }
     .export-ui-overlay.is-mini .export-ui-head { padding-right: 0; justify-content: center; }

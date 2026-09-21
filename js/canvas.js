@@ -5,7 +5,7 @@
     // Preview (#preview-stack) shu nisbatda o'lchanadi, export (export.js) getCanvasOutputSize() dan o'qiydi,
     // clip'lar canvas ichiga "contain" (qora chetlar bilan) joylashadi.
 
-    const CANVAS_MAX_SIDE = 1280;   // export.js dagi eski chegara bilan bir xil (uzun tomon)
+    const CANVAS_MAX_SIDE = 1280;   // preview masshtabi; export sifat tanlovi maxSide ni alohida beradi
 
     // Rasmlardagi jadval: nisbat, nom, qayerda ishlatiladi
     const CANVAS_PRESETS = [
@@ -89,19 +89,20 @@
     }
 
     // Export (va preview'dagi matn masshtabi) uchun chiqish o'lchami. Har ikki tomon juft (ffmpeg/x264 uchun).
-    function getCanvasOutputSize() {
+    // opts.maxSide berilsa (720p=1280, 1080p=1920) shu cap ishlatiladi; preview default 1280.
+    function getCanvasOutputSize(opts) {
+      const maxSide = (opts && opts.maxSide) ? opts.maxSide : CANVAS_MAX_SIDE;
       const p = canvasPresetById(state.canvasRatio);
       let w, h;
       if (p && p.r) {
-        // Uzun tomon = 1280
-        if (p.r >= 1) { w = CANVAS_MAX_SIDE; h = CANVAS_MAX_SIDE / p.r; }
-        else { h = CANVAS_MAX_SIDE; w = CANVAS_MAX_SIDE * p.r; }
+        if (p.r >= 1) { w = maxSide; h = maxSide / p.r; }
+        else { h = maxSide; w = maxSide * p.r; }
       } else {
         // Fit: manba o'lchami, faqat kattasi kichraytiriladi (eski xatti-harakat)
         const s = getFitSourceSize();
         w = s.w; h = s.h;
         const m = Math.max(w, h);
-        if (m > CANVAS_MAX_SIDE) { const k = CANVAS_MAX_SIDE / m; w *= k; h *= k; }
+        if (m > maxSide) { const k = maxSide / m; w *= k; h *= k; }
       }
       w = Math.round(w); h = Math.round(h);
       w = Math.max(2, w - (w % 2));
