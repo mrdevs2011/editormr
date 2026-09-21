@@ -1,0 +1,9 @@
+{
+  "name": "emr-videoeditor",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-config.js",
+    "build:config": "node scripts/build-config.js",
+    "prestart": "node scripts/build-config.js"
+  }
+}

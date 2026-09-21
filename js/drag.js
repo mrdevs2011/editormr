@@ -3,9 +3,10 @@
     // klip USTIGA tushmaydi. Musiqa/matn treki ustiga ham chiqmaydi
     // (faqat video-lane ichidagi qatorlar).
 
-    function clipsTimeOverlap(aStart, aEnd, bStart, bEnd) {
-      return aStart < bEnd - 1e-4 && bStart < aEnd - 1e-4;
-    }
+    // clipsTimeOverlap — state.js da e'lon qilingan (B11: bu yerda ilgari
+    // aynan bir xil funksiya ikkinchi marta e'lon qilinardi — script tartibiga
+    // fragil bog'liqlik edi, global scope'da state.js dagisi ustidan yozilib
+    // ketardi; olib tashlandi, state.js dagisi ishlatiladi).
 
     function videoClipsOnTrack(track, excludeIds) {
       excludeIds = excludeIds || new Set();
@@ -78,6 +79,80 @@
         start: resolveVideoStartTimeOnTrack(clip, desiredStart, desiredTrack, excludeIds),
         track: desiredTrack,
       };
+    }
+
+    /**
+     * Asosiy qator (track 0): insertAt vaqtda joy ochadi — o'sha nuqtadan
+     * keyin boshlanadigan kliplar o'ngga suriladi (drag qilinayotgan klip uchun).
+     * 2 ta clip ORTASIGA olib borganda ular joy beradi.
+     */
+    function rippleInsertOnMain(clip, insertAt, excludeIds) {
+      const dur = clipDuration(clip);
+      if (dur <= 0) return Math.max(0, insertAt);
+      excludeIds = excludeIds || new Set([clip.id]);
+      let t = Math.max(0, insertAt);
+
+      const others = videoClipsOnTrack(MAIN_TRACK, excludeIds)
+        .slice()
+        .sort((a, b) => a.startTime - b.startTime);
+
+      // Kursor clip ichida bo'lsa — yaqin chetga snap (orasiga tushish)
+      for (let i = 0; i < others.length; i++) {
+        const o = others[i];
+        const oEnd = clipEnd(o);
+        if (t > o.startTime + 1e-3 && t < oEnd - 1e-3) {
+          const mid = (o.startTime + oEnd) / 2;
+          t = t < mid ? o.startTime : oEnd;
+          break;
+        }
+      }
+
+      // t dan keyin (yoki t da) boshlanadiganlarni o'ngga sur
+      for (let i = 0; i < others.length; i++) {
+        const o = others[i];
+        if (o.startTime >= t - 1e-4) {
+          o.startTime += dur;
+        }
+      }
+
+      // t dan oldin boshlanib t ni kesib o'tadiganlar — ularning oxirini bo'shatish
+      // (snap qilingan bo'lsa kamdan-kam); agar hali overlap bo'lsa o'ngga
+      for (let i = 0; i < others.length; i++) {
+        const o = others[i];
+        if (excludeIds.has(o.id)) continue;
+        if (clipsTimeOverlap(t, t + dur, o.startTime, clipEnd(o))) {
+          o.startTime = t + dur;
+        }
+      }
+
+      return t;
+    }
+
+    function snapshotVideoLayout() {
+      const map = new Map();
+      for (const c of state.videoClips) {
+        map.set(c.id, {
+          startTime: c.startTime,
+          track: clipTrackIndex(c),
+          trimStart: c.trimStart,
+          trimEnd: c.trimEnd,
+        });
+      }
+      return map;
+    }
+
+    function restoreVideoLayout(snap, exceptId) {
+      if (!snap) return;
+      for (const c of state.videoClips) {
+        if (c.id === exceptId) continue;
+        const s = snap.get(c.id);
+        if (!s) continue;
+        c.startTime = s.startTime;
+        applyClipTrack(c, s.track);
+        // trim faqat drag qilinayotganda o'zgaradi — qolganlarini tikla
+        if (s.trimStart != null) c.trimStart = s.trimStart;
+        if (s.trimEnd != null) c.trimEnd = s.trimEnd;
+      }
     }
 
     /** Multi-select guruh: bir xil dt + dTrack, tashqi kliplar bilan overlap yo'q */
@@ -174,6 +249,7 @@
         state.dragOrigTrack = clipTrackIndex(clip);
         state.dragOrigTrimStart = clip.trimStart;
         state.dragOrigTrimEnd = clip.trimEnd;
+        state.dragLayoutSnap = snapshotVideoLayout();
       } else {
         state.dragOrigStart = state.music.startTime;
         state.dragOrigOffsetY = state.music.offsetY || 0;
@@ -256,8 +332,21 @@
         const clip = getClipById(state.dragClipId);
         if (!clip) return;
         if (state.dragType === 'move') {
-          clip.startTime = Math.max(0, state.dragOrigStart + dt);
-          applyClipTrack(clip, (state.dragOrigTrack || 0) + dTrack);
+          // Har frame: asosiy joylashuvni tikla, keyin yangi joy + asosiy qatorda joy och
+          restoreVideoLayout(state.dragLayoutSnap, clip.id);
+          const desiredStart = Math.max(0, state.dragOrigStart + dt);
+          const desiredTrack = Math.max(0, Math.min(MAX_VIDEO_TRACKS - 1, (state.dragOrigTrack || 0) + dTrack));
+          applyClipTrack(clip, desiredTrack);
+          if (desiredTrack === MAIN_TRACK) {
+            const insertAt = rippleInsertOnMain(clip, desiredStart, new Set([clip.id]));
+            clip.startTime = insertAt;
+            applyClipTrack(clip, MAIN_TRACK);
+          } else {
+            // Float qator: oddiy overlap-siz joylashuv
+            const place = resolveVideoPlacement(clip, desiredStart, desiredTrack, new Set([clip.id]));
+            clip.startTime = place.start;
+            applyClipTrack(clip, place.track);
+          }
         } else if (state.dragType === 'trim-left') {
           let newTrimStart = state.dragOrigTrimStart + dt;
           newTrimStart = Math.max(0, Math.min(newTrimStart, clip.trimEnd - 0.15));
@@ -377,11 +466,19 @@
             clip._homeTrack = MAIN_TRACK;
             clip._wasFloated = false;
             inheritTransitionsForRemoved([clip]);
+            // Main dan chiqganda: snap allaqachon restore qilingan emas — packing
+            // live drag restore + float place qilgan; asosiy qatorni qayta yig'ish
             ripplePackAfterRemove([clip]);
           }
-          const place = resolveVideoPlacement(clip, clip.startTime, nowTrack);
-          clip.startTime = place.start;
-          applyClipTrack(clip, place.track);
+          if (state.dragType === 'move' && nowTrack === MAIN_TRACK) {
+            // Live ripple allaqachon qo'llangan — faqat yakuniy overlap tozalash
+            normalizeVideoOverlaps();
+          } else if (state.dragType !== 'move' || nowTrack !== MAIN_TRACK) {
+            const place = resolveVideoPlacement(clip, clip.startTime, nowTrack);
+            clip.startTime = place.start;
+            applyClipTrack(clip, place.track);
+            if (nowTrack === MAIN_TRACK) normalizeVideoOverlaps();
+          }
         }
       }
 
@@ -393,6 +490,7 @@
       state.dragClipId = null;
       state.dragGroup = null;
       state.dragPitch = null;
+      state.dragLayoutSnap = null;
       scheduleSave();
       timeRuler.classList.remove('hide-ticks');
       document.removeEventListener('pointermove', onDrag);

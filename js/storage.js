@@ -6,6 +6,19 @@
 
     const BUCKET = 'project-media';
 
+    /** Account yo'q / sessiya yo'q → local (IndexedDB). UI bir xil qoladi. */
+    function isCloudSession() {
+      try {
+        return !!(window.Auth && window.Auth.client && window.Auth.session);
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function localAdapter() {
+      return window.LocalAdapter || null;
+    }
+
     function sbClient() {
       if (!window.Auth || !window.Auth.client) throw new Error('Supabase ulanmagan');
       return window.Auth.client;
@@ -33,7 +46,10 @@
     const LOCK_KEY_SESSION = '__lockSession';
     const LOCK_KEY_UNTIL = '__lockUntil';
     const LOCK_TTL_MS = 120000;
-    const CANVAS_KEY = '__canvas';   // canvas nisbati (file_names jsonb ichida, alohida ustun/migratsiya kerak emas)
+    // Eski fallback: canvas nisbati file_names ichida saqlanardi (Faza 0).
+    // 002 migratsiyadan keyin alohida `canvas` jsonb ustuni ishlatiladi;
+    // eski kalit faqat eski qatorlarni o'qish uchun qoladi.
+    const CANVAS_KEY = '__canvas';
 
     function editorSessionId() {
       try {
@@ -83,15 +99,37 @@
         clipCount: row.clip_count,
         clips: row.clips || [],
         music: row.music || null,
+        // B1 tuzatish: matn overlay'lar endi alohida ustunda saqlanadi/o'qiladi (migrations/001_add_text_clips.sql)
+        textClips: Array.isArray(row.text_clips) ? row.text_clips : [],
+        // Faza 4: audio_clips + ducking (migrations/004)
+        audioClips: Array.isArray(row.audio_clips) ? row.audio_clips : [],
+        ducking: (row.ducking && typeof row.ducking === 'object') ? row.ducking : null,
+        // Faza 5: subtitles (migrations/005)
+        subtitles: (row.subtitles && typeof row.subtitles === 'object') ? row.subtitles : null,
+        // Faza 3: extras (migrations/003)
+        extras: (row.extras && typeof row.extras === 'object') ? row.extras : {},
+        markers: (row.extras && Array.isArray(row.extras.markers)) ? row.extras.markers : [],
+        inPoint: (row.extras && row.extras.inPoint != null) ? row.extras.inPoint : null,
+        outPoint: (row.extras && row.extras.outPoint != null) ? row.extras.outPoint : null,
         currentTime: row.current_time_sec || 0,
         pps: row.pps,
-        canvas: fn[CANVAS_KEY] || null,
+        // Faza 2A-1: canvas ustuni (jsonb {w,h,fps} yoki null). Eski qatorlarda
+        // faqat file_names.__canvas (string ratio) bo'lishi mumkin — uni ham o'qiymiz.
+        canvas: (row.canvas !== undefined && row.canvas !== null)
+          ? row.canvas
+          : (fn[CANVAS_KEY] || null),
+        schemaVersion: (row.schema_version != null) ? Number(row.schema_version) : undefined,
         locked: !!(lock.session && lock.until > now && lock.session !== editorSessionId()),
         lockUntil: lock.until,
       };
     }
 
     async function dbListProjects() {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.listProjects();
+        return [];
+      }
       const uid = await currentUserId();
       const { data, error } = await sbClient()
         .from('projects').select('*').eq('user_id', uid);
@@ -112,6 +150,11 @@
     }
 
     async function dbGetProject(id) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.getProject(id);
+        return null;
+      }
       const uid = await currentUserId();
       const { data, error } = await sbClient()
         .from('projects').select('*').eq('id', id).eq('user_id', uid).maybeSingle();
@@ -120,6 +163,11 @@
     }
 
     async function dbGetFiles(projectId) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.getFiles(projectId);
+        return [];
+      }
       const uid = await currentUserId();
       const { data: row, error } = await sbClient()
         .from('projects').select('file_names').eq('id', projectId).eq('user_id', uid).maybeSingle();
@@ -140,6 +188,11 @@
     // Meta + yangi fayllar + keraksiz fayllar — avval yuklaymiz, keyin meta yozamiz,
     // oxirida ortiqchasini o'chiramiz (shunday tartibda hech qachon "meta bor-u fayl yo'q" holat bo'lmaydi)
     async function dbSaveProject(meta, newFiles, removedFileIds, opts) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (!loc) throw new Error('Local saqlash mavjud emas');
+        return await loc.saveProject(meta, newFiles, removedFileIds, opts);
+      }
       const uid = await currentUserId();
       opts = opts || {};
       const expected = opts.expectedUpdatedAt;
@@ -175,7 +228,10 @@
       for (const id of removedFileIds) {
         if (!isReservedFileKey(id)) delete fileNames[id];
       }
-      if (meta.canvas) fileNames[CANVAS_KEY] = meta.canvas;
+      // Eski __canvas kalitini tozalaymiz — endi alohida ustun
+      if (Object.prototype.hasOwnProperty.call(fileNames, CANVAS_KEY)) {
+        delete fileNames[CANVAS_KEY];
+      }
       // Ochiq sessiya lockini saqlab qolamiz
       if (fileNames[LOCK_KEY_SESSION] === editorSessionId()) {
         fileNames[LOCK_KEY_UNTIL] = Date.now() + LOCK_TTL_MS;
@@ -192,9 +248,22 @@
         clip_count: meta.clipCount,
         clips: meta.clips,
         music: meta.music,
+        // B1 tuzatish: matn overlay'larni ham DB'ga yozamiz (ilgari yo'qolib ketardi)
+        text_clips: meta.textClips || [],
+        // Faza 4: audio_clips + ducking (migrations/004)
+        audio_clips: Array.isArray(meta.audioClips) ? meta.audioClips : [],
+        ducking: meta.ducking && typeof meta.ducking === 'object' ? meta.ducking : { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true },
+        // Faza 5: subtitles (migrations/005)
+        subtitles: meta.subtitles && typeof meta.subtitles === 'object' ? meta.subtitles : null,
+        // Faza 3: extras (migrations/003)
+        extras: meta.extras && typeof meta.extras === 'object' ? meta.extras : {},
         current_time_sec: meta.currentTime,
         pps: meta.pps,
         file_names: fileNames,
+        // Faza 2A-1: canvas + schema_version (migrations/002). Ustunlar yo'q bo'lsa
+        // saqlash xato beradi — avval SQL'ni Supabase'da ishga tushirish SHART.
+        canvas: meta.canvas != null ? meta.canvas : null,
+        schema_version: meta.schemaVersion != null ? meta.schemaVersion : 1,
       };
 
       if (!existing) {
@@ -248,6 +317,7 @@
     }
 
     async function dbAcquireProjectLock(projectId, opts) {
+      if (!isCloudSession()) return true;
       if (!projectId) return true;
       const steal = !!(opts && opts.steal);
       const now = Date.now();
@@ -274,6 +344,7 @@
     }
 
     async function dbOwnsProjectLock(projectId) {
+      if (!isCloudSession()) return true;
       if (!projectId) return false;
       const { fileNames } = await dbReadFileNames(projectId);
       const info = lockInfoFromFileNames(fileNames);
@@ -282,6 +353,7 @@
     }
 
     async function dbHeartbeatProjectLock(projectId) {
+      if (!isCloudSession()) return true;
       if (!projectId) return true;
       const session = editorSessionId();
       const { fileNames } = await dbReadFileNames(projectId);
@@ -293,6 +365,7 @@
     }
 
     async function dbReleaseProjectLock(projectId) {
+      if (!isCloudSession()) return true;
       if (!projectId) return;
       try {
         const session = editorSessionId();
@@ -305,6 +378,11 @@
     }
 
     async function dbRenameProject(id, name) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.renameProject(id, name);
+        return;
+      }
       const uid = await currentUserId();
       const { error } = await sbClient()
         .from('projects').update({ name, updated_at: Date.now() }).eq('id', id).eq('user_id', uid);
@@ -312,6 +390,11 @@
     }
 
     async function dbDeleteProject(id) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.deleteProject(id);
+        return;
+      }
       const uid = await currentUserId();
       const { data: row } = await sbClient()
         .from('projects').select('file_names').eq('id', id).eq('user_id', uid).maybeSingle();

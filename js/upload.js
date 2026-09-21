@@ -23,41 +23,62 @@
 
     // Birinchi yuklash (upload screen) — timeline ni tozalab qo'yadi
     function handleFile(file) {
-      if (!file) return;
+      if (!file) return Promise.resolve();
       const isVideo = file.type.startsWith('video/');
       const isImage = file.type.startsWith('image/');
       if (!isVideo && !isImage) {
-        showToast('Please select a video or image file');
-        return;
+        showToast('Video yoki rasm fayl tanlang');
+        return Promise.resolve();
       }
 
       // Agar editorda allaqachon video bor bo'lsa — qo'shish rejimi
       if (editorScreen.style.display === 'flex' && state.videoClips.length > 0) {
-        addMediaToTimeline(file);
-        return;
+        return addMediaToTimeline(file);
       }
 
       // Yangi loyiha (projects.js: id, nom, thumbnail)
       resetEditorState();
       beginProject(file, isImage);
       state.videoFile = file;
-      state.videoUrl = (typeof trackObjectUrl === "function" ? trackObjectUrl((typeof trackObjectUrl==="function"?trackObjectUrl(URL.createObjectURL(file)):URL.createObjectURL(file))) : (typeof trackObjectUrl==="function"?trackObjectUrl(URL.createObjectURL(file)):URL.createObjectURL(file)));
+      // B11 tuzatish: ilgari shu yerda trackObjectUrl(trackObjectUrl(...)) ichma-ich
+      // ternary bilan yozilgan edi (funksional farqi yo'q edi — trackObjectUrl
+      // idempotent, faqat Set'ga qo'shadi — lekin o'qish qiyin edi).
+      state.videoUrl = typeof trackObjectUrl === "function"
+        ? trackObjectUrl(URL.createObjectURL(file))
+        : URL.createObjectURL(file);
       state.isImage = isImage;
 
-      loadMediaAsMain(file, state.videoUrl, isImage);
+      return loadMediaAsMain(file, state.videoUrl, isImage);
+    }
+
+    // B9 tuzatish: ilgari drop/tanlashda faqat files[0] olinar edi, qolganlari
+    // e'tiborsiz qoldirilardi. Endi birinchi fayl yangi loyiha ochadi (handleFile,
+    // shu joyning o'zida kutiladi — aks holda ikkinchi fayl birinchisi hali
+    // tayyor bo'lmay turib timeline'ga qo'shilishga urinib, poyga holati (race)
+    // yaratardi), qolganlari esa ketma-ket addMediaToTimeline bilan qo'shiladi
+    // (xuddi editordagi "+" va ichki drag-drop allaqachon qilgani kabi — add-media.js).
+    async function handleFiles(fileList) {
+      const files = [...(fileList || [])].filter(
+        (f) => f && (f.type.startsWith('video/') || f.type.startsWith('image/'))
+      );
+      if (!files.length) {
+        showToast('Video yoki rasm fayl tanlang');
+        return;
+      }
+      await handleFile(files[0]);
+      for (let i = 1; i < files.length; i++) {
+        await addMediaToTimeline(files[i]);
+      }
     }
 
     function loadMediaAsMain(file, url, isImage) {
+      return new Promise((resolve) => {
       if (isImage) {
         state.videoDuration = 5;
-        const id = makeClipId();
         if (typeof invalidateClipOrder === "function") invalidateClipOrder();
-      state.videoClips = [{
-          id, startTime: 0, trimStart: 0, trimEnd: 5, offsetY: 0, track: 0,
-          url, file, duration: 5, isImage: true, filmstrip: null, name: file.name,
-          volume: 1, muted: false, speed: 1, fadeIn: 0, fadeOut: 0, transitionType: 'none', transitionDuration: 0.3,
-        }];
-        selectOnly(id);
+        const clip = createClip({ url, file, duration: 5, trimEnd: 5, isImage: true, name: file.name });
+        state.videoClips = [clip];
+        selectOnly(clip.id);
         const img = new Image();
         img.onload = () => {
           const fs = buildImageFilmstrip(img, 5);
@@ -66,8 +87,9 @@
           setupImagePreview(img);
           switchToEditor();
           renderVideoBlock();
+          resolve();
         };
-        img.onerror = () => { switchToEditor(); };
+        img.onerror = () => { switchToEditor(); resolve(); };
         img.src = url;
       } else {
         previewVideo.style.display = 'block';
@@ -81,33 +103,28 @@
           previewVideo.onerror = null;
           state.videoDuration = previewVideo.duration || 5;
           if (!isFinite(state.videoDuration) || state.videoDuration === 0) state.videoDuration = 5;
-          const id = makeClipId();
           if (typeof invalidateClipOrder === "function") invalidateClipOrder();
-      state.videoClips = [{
-            id, startTime: 0, trimStart: 0, trimEnd: state.videoDuration, offsetY: 0, track: 0,
-            url, file, duration: state.videoDuration, isImage: false, filmstrip: null, name: file.name,
-            volume: 1, muted: false, speed: 1, fadeIn: 0, fadeOut: 0, transitionType: 'none', transitionDuration: 0.3,
-          }];
-          selectOnly(id);
+          const clip = createClip({ url, file, duration: state.videoDuration, trimEnd: state.videoDuration, isImage: false, name: file.name });
+          state.videoClips = [clip];
+          selectOnly(clip.id);
           switchToEditor();
           renderVideoBlock();
           generateVideoFilmstripForClip(state.videoClips[0]);
+          resolve();
         };
+        // B6 tuzatish: ilgari bu yerda xato bo'lsa ham soxta 5 soniyalik clip
+        // yaratilib, editorga o'tkazilardi (jim, tushunarsiz natija). Endi:
+        // aniq xato ko'rsatiladi, clip yaratilmaydi, foydalanuvchi upload
+        // ekranida qoladi (boshqa fayl tanlashi mumkin).
         previewVideo.onerror = () => {
           previewVideo.onloadedmetadata = null;
           previewVideo.onerror = null;
-          state.videoDuration = 5;
-          const id = makeClipId();
-          if (typeof invalidateClipOrder === "function") invalidateClipOrder();
-      state.videoClips = [{
-            id, startTime: 0, trimStart: 0, trimEnd: 5, offsetY: 0, track: 0,
-            url, file, duration: 5, isImage: false, filmstrip: null, name: file.name,
-            volume: 1, muted: false, speed: 1, fadeIn: 0, fadeOut: 0, transitionType: 'none', transitionDuration: 0.3,
-          }];
-          selectOnly(id);
-          switchToEditor();
+          if (typeof releaseObjectUrl === "function") releaseObjectUrl(url); else { try { URL.revokeObjectURL(url); } catch (_) {} }
+          showToast('Bu formatni brauzer o\'qiy olmadi (HEVC?). MP4 (H.264) ga aylantirib ko\'ring');
+          resolve();
         };
       }
+      });
     }
 
     // + / Ctrl+V / drag-drop — asosiy timeline ga qo'shish
@@ -127,31 +144,21 @@
       if (isImage) {
         duration = 5;
       } else {
-        duration = await getVideoDuration(url);
+        // B6 tuzatish: getVideoDuration endi xato/timeout'da reject qiladi
+        // (avval jim ravishda 5s qaytarardi). Bu yerda ushlab, clip
+        // yaratilmasdan aniq xabar bilan to'xtaymiz.
+        try {
+          duration = await getVideoDuration(url);
+        } catch (err) {
+          if (typeof releaseObjectUrl === "function") releaseObjectUrl(url); else { try { URL.revokeObjectURL(url); } catch (_) {} }
+          showToast('Bu formatni brauzer o\'qiy olmadi (HEVC?). MP4 (H.264) ga aylantirib ko\'ring');
+          return;
+        }
       }
 
-      const id = makeClipId();
-      const clip = {
-        id,
-        startTime: placeAt,
-        trimStart: 0,
-        trimEnd: duration,
-        offsetY: 0,
-        track: 0,
-        url,
-        file,
-        duration,
-        isImage,
-        filmstrip: null,
-        name: file.name,
-        volume: 1,
-        muted: false,
-        speed: 1,
-        fadeIn: 0,
-        fadeOut: 0,
-        transitionType: 'none',
-        transitionDuration: 0.3,
-      };
+      const clip = createClip({
+        startTime: placeAt, trimEnd: duration, url, file, duration, isImage, name: file.name,
+      });
       pushHistory();
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       state.videoClips.push(clip);
@@ -163,7 +170,7 @@
         clip.startTime = resolveVideoStartTime(clip, clip.startTime);
         applyClipTrack(clip, 0);
       }
-      selectOnly(id);
+      selectOnly(clip.id);
 
       // Preview ni yangi clip ga o'tkazish
       await ensurePreviewForClip(clip);
@@ -187,17 +194,39 @@
       showToast('Media qo\'shildi (' + formatTime(placeAt) + ' dan)');
     }
 
+    // B6 tuzatish: ilgari xato (onerror) va timeout (4s)da jim ravishda
+    // 5 soniyalik soxta davomiylik qaytarilardi — HEVC/buzuq fayl uchun
+    // foydalanuvchiga hech narsa bildirmasdan noto'g'ri clip yaratilardi.
+    // Endi bu funksiya reject qiladi, chaqiruvchi (addMediaToTimeline) aniq
+    // xabar ko'rsatadi va clip yaratmaydi. Timeout 4s -> 15s (katta/sekin
+    // fayl metadata'si kechikishi uchun ko'proq vaqt).
     function getVideoDuration(url) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         const v = document.createElement('video');
         v.preload = 'metadata';
         v.src = url;
+        let settled = false;
+        const cleanup = () => { v.onloadedmetadata = null; v.onerror = null; };
         v.onloadedmetadata = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
           const d = v.duration;
-          resolve(isFinite(d) && d > 0 ? d : 5);
+          if (isFinite(d) && d > 0) resolve(d);
+          else reject(new Error('invalid-duration'));
         };
-        v.onerror = () => resolve(5);
-        setTimeout(() => resolve(5), 4000);
+        v.onerror = () => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error('decode-error'));
+        };
+        setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          reject(new Error('metadata-timeout'));
+        }, 15000);
       });
     }
 
@@ -356,11 +385,11 @@
     uploadScreen.addEventListener('drop', (e) => {
       e.preventDefault();
       uploadScreen.classList.remove('drag-over');
-      handleFile(e.dataTransfer.files[0]);
+      handleFiles(e.dataTransfer.files);
     });
     uploadBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', () => {
-      handleFile(fileInput.files[0]);
+      handleFiles(fileInput.files);
       fileInput.value = ''; // shu faylni qayta tanlash ham ishlasin
     });
 

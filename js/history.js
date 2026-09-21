@@ -4,11 +4,20 @@
     const HISTORY_MAX = 30;
 
     function snapshotState() {
+      // Faza 2C-3: fit/transform/opacity/kenBurns ham snapshot'da
       return {
-        videoClips: state.videoClips.map(c => ({ ...c })),
+        videoClips: state.videoClips.map(c => ({
+          ...c,
+          transform: c.transform ? { ...c.transform } : { x: 0, y: 0, scale: 1, rotation: 0 },
+          kenBurns: c.kenBurns ? {
+            from: c.kenBurns.from ? { ...c.kenBurns.from } : undefined,
+            to: c.kenBurns.to ? { ...c.kenBurns.to } : undefined,
+          } : undefined,
+        })),
         music: state.music ? { ...state.music } : null,
         textClips: (state.textClips || []).map(c => ({ ...c })),
-        canvas: state.canvasRatio,
+        canvasRatio: state.canvasRatio,
+        canvas: state.canvas ? { ...state.canvas } : null,
         selectedClipId: state.selectedClipId,
         selectedIds: new Set(state.selectedIds),
       };
@@ -44,16 +53,27 @@
     }
 
     function restoreSnapshot(snap) {
-      state.videoClips = snap.videoClips.map(c => ({ ...c }));
+      state.videoClips = snap.videoClips.map(c => ({
+        ...c,
+        transform: c.transform ? { ...c.transform } : { x: 0, y: 0, scale: 1, rotation: 0 },
+        kenBurns: c.kenBurns ? {
+          from: c.kenBurns.from ? { ...c.kenBurns.from } : undefined,
+          to: c.kenBurns.to ? { ...c.kenBurns.to } : undefined,
+        } : undefined,
+      }));
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       state.music = snap.music ? { ...snap.music } : null;
       state.textClips = (snap.textClips || []).map(c => ({ ...c }));
-      if (snap.canvas && typeof applyCanvas === 'function') {
-        state.canvasRatio = snap.canvas;
-        applyCanvas();
-      }
+      // Faza 2: canvas obyekt + ratio
+      if (snap.canvasRatio != null) state.canvasRatio = snap.canvasRatio;
+      else if (typeof snap.canvas === 'string') state.canvasRatio = snap.canvas; // eski snapshot
+      state.canvas = snap.canvas && typeof snap.canvas === 'object' ? { ...snap.canvas } : null;
+      if (typeof applyCanvas === 'function') applyCanvas();
       state.selectedClipId = snap.selectedClipId;
       state.selectedIds = new Set(snap.selectedIds || []);
+      if (typeof window.EMR !== 'undefined' && window.EMR.requestPreviewRedraw) {
+        try { window.EMR.requestPreviewRedraw(true); } catch (_) {}
+      }
 
       if (state.music) {
         musicTrack.style.display = 'flex';

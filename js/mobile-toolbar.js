@@ -96,7 +96,8 @@
               const textSel = (state.textClips || []).find(t => t.id === state.selectedClipId || (state.selectedIds && state.selectedIds.has(t.id)));
               if (textSel) showToast('Text allaqachon overlay (float)');
             }
-          } else if (act === 'dup') duplicateSelected();
+          }
+        } else if (act === 'dup') duplicateSelected();
         else if (act === 'del') deleteSelectedClip();
         updateMobileToolbar();
       });

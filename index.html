@@ -3,14 +3,59 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>EditorMR</title>
-  <meta name="application-name" content="EMR" />
-  <meta name="apple-mobile-web-app-title" content="EMR" />
+  <meta name="description" content="Brauzerda tez video montaj — kesish, transition, matn, musiqa, export. O'zbekcha." />
+  <meta property="og:title" content="EditorMR - VideoEditor" />
+  <meta property="og:description" content="Brauzerda tez video montaj — kesish, transition, matn, musiqa, export." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="assets/logo.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="EditorMR - VideoEditor" />
+  <meta name="twitter:description" content="Brauzerda tez video montaj. O'zbekcha." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <title>EditorMR - VideoEditor</title>
+  <meta name="application-name" content="EMR VideoEditor" />
+  <meta name="apple-mobile-web-app-title" content="EMR VideoEditor" />
   <meta name="theme-color" content="#191d22" />
 
   <!-- login tekshiruvi tugaguncha sahifa ko'rinmasin (flash bo'lmasligi uchun) -->
   <style>html.auth-pending body { visibility: hidden; }</style>
   <script>document.documentElement.classList.add('auth-pending');</script>
+
+  <!-- Faza 0: global xato ushlovchi. Boshqa <script>lardan OLDIN qo'yilgan —
+       keyinroq yuklanadigan fayllardagi runtime xatolarni ham ushlaydi.
+       showToast hali yuklanmagan bo'lishi mumkin (helpers.js keyinroq
+       kelyapti) — shuning uchun mavjud bo'lsagina chaqiriladi, xato har doim
+       konsolga struktura bilan yoziladi (Faza 9da yuborishga ulanadi). -->
+  <script>
+    (function () {
+      function reportError(kind, detail) {
+        try { console.error('[EMR]', kind, detail); } catch (_) {}
+        try {
+          if (typeof window.showToast === 'function') {
+            window.showToast('Kutilmagan xato yuz berdi (konsolni tekshiring)');
+          }
+        } catch (_) {}
+      }
+      window.addEventListener('error', function (e) {
+        reportError('window.onerror', {
+          message: e.message,
+          source: e.filename,
+          line: e.lineno,
+          col: e.colno,
+          stack: e.error && e.error.stack,
+        });
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var reason = e.reason;
+        reportError('unhandledrejection', {
+          message: (reason && reason.message) ? reason.message : String(reason),
+          stack: reason && reason.stack,
+        });
+      });
+    })();
+  </script>
 
   <!-- ===== ICONS ===== -->
   <link rel="icon" href="favicon.ico" sizes="any" />
@@ -37,10 +82,10 @@
       <div class="dash-header">
         <h1 class="brand">
           <img src="assets/logo.png" alt="EMR" />
-          <span>Editor</span>
+          <span>EMR VideoEditor</span>
         </h1>
         <div class="upload-box" id="upload-box">
-          <span class="hint">drop a file anywhere · Ctrl+V</span>
+          <span class="hint">Faylni istalgan joyga tashlang · Ctrl+V</span>
           <a class="upload-btn ghost" href="help/" id="help-btn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 2.5-3 4"/><path d="M12 17h.01"/></svg>
             Yordam
@@ -51,12 +96,12 @@
           </button>
           <div class="user-chip" id="user-chip" hidden>
             <span class="user-email" id="user-email"></span>
-            <button class="upload-btn ghost" id="signout-btn" type="button">Sign out</button>
+            <button class="upload-btn ghost" id="signout-btn" type="button">Chiqish</button>
           </div>
         </div>
       </div>
       <div class="dash-section-head">
-        <div class="section-label" id="projects-label">Projects</div>
+        <div class="section-label" id="projects-label">Loyihalar</div>
         <div class="dash-sort" id="dash-sort" hidden>
           <label for="project-sort">Saralash</label>
           <select id="project-sort" aria-label="Loyihalarni saralash">
@@ -85,7 +130,7 @@
         </button>
       </div>
     </div>
-    <input type="file" id="file-input" accept="video/*,image/*" />
+    <input type="file" id="file-input" accept="video/*,image/*" multiple />
   </div>
 
   <!-- EDITOR SCREEN -->
@@ -109,7 +154,7 @@
         </div>
       </div>
       <div class="play-controls">
-        <button class="play-btn" id="play-btn" title="Play / Pause (Space)">
+        <button class="play-btn" id="play-btn" title="Ijro / Pauza (Space)">
           <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>
           <svg id="icon-pause" viewBox="0 0 24 24" style="display:none"><path d="M6 5h4v14H6zm8 0h4v14h-4z" fill="currentColor" stroke="none"/></svg>
         </button>
@@ -118,51 +163,51 @@
     </div>
 
     <div class="toolbar">
-      <button class="tool-btn" id="back-btn" title="Back to Projects">
+      <button class="tool-btn" id="back-btn" title="Loyihalarga qaytish">
         <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
       </button>
       <div class="tool-sep"></div>
-      <button class="tool-btn" id="add-media-btn" title="Add Video / Photo">
+      <button class="tool-btn" id="add-media-btn" title="Video / rasm qo‘shish">
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
       </button>
       <div class="tool-sep"></div>
-      <button class="tool-btn" id="music-btn" title="Add Music">
+      <button class="tool-btn" id="music-btn" title="Musiqa qo‘shish">
         <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
       </button>
       <div class="tool-sep"></div>
-      <button class="tool-btn" id="text-btn" title="Add Text">
+      <button class="tool-btn" id="text-btn" title="Matn qo‘shish">
         <svg viewBox="0 0 24 24"><path d="M4 7V5h16v2"/><path d="M12 5v14"/><path d="M9 19h6"/></svg>
       </button>
       <div class="tool-sep"></div>
-      <button class="tool-btn tool-btn-canvas" id="canvas-btn" title="Canvas (aspect ratio)" aria-haspopup="dialog">
+      <button class="tool-btn tool-btn-canvas" id="canvas-btn" title="Canvas (nisbat)" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10V8h2M17 14v2h-2"/></svg>
-        <span class="cv-btn-label" id="canvas-btn-label">Fit</span>
+        <span class="cv-btn-label" id="canvas-btn-label">Moslash</span>
       </button>
       <div class="tool-sep tool-sep-history"></div>
-      <button class="tool-btn" id="undo-btn" title="Undo (Ctrl+Z)" disabled>
+      <button class="tool-btn" id="undo-btn" title="Bekor qilish (Ctrl+Z)" disabled>
         <svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 7"/></svg>
       </button>
-      <button class="tool-btn" id="redo-btn" title="Redo (Ctrl+Shift+Z)" disabled>
+      <button class="tool-btn" id="redo-btn" title="Qaytarish (Ctrl+Shift+Z)" disabled>
         <svg viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7L21 7"/></svg>
       </button>
     </div>
     <input type="file" id="add-media-input" accept="video/*,image/*" multiple hidden />
 
     <div class="timeline-section" id="timeline-section">
-      <div class="timeline-resize-handle" id="timeline-resize-handle" title="Drag to resize"></div>
+      <div class="timeline-resize-handle" id="timeline-resize-handle" title="O‘lchamini o‘zgartirish"></div>
       <div class="timeline-header">
         <div class="timeline-header-left">
-          <span>Timeline</span>
+          <span>Vaqt chizig‘i</span>
         </div>
         <div class="timeline-header-right">
-          <button class="zoom-btn" id="zoom-out" title="Zoom out">
+          <button class="zoom-btn" id="zoom-out" title="Kichiklashtirish">
             <svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
           </button>
           <span class="zoom-label" id="zoom-label">100%</span>
-          <button class="zoom-btn" id="zoom-in" title="Zoom in">
+          <button class="zoom-btn" id="zoom-in" title="Kattalashtirish">
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           </button>
-          <button class="export-btn" id="export-btn" title="Export">
+          <button class="export-btn" id="export-btn" title="Eksport">
             <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M5 19h14"/></svg>
           </button>
         </div>
@@ -193,9 +238,9 @@
     </div>
   </div>
 
-  <div class="mobile-action-bar" id="mobile-action-bar" aria-label="Mobile tools" hidden>
+  <div class="mobile-action-bar" id="mobile-action-bar" aria-label="Mobil asboblar" hidden>
     <div class="mob-duration-row" id="mob-duration-row" hidden>
-      <span class="mob-duration-label">Duration</span>
+      <span class="mob-duration-label">Davomiylik</span>
       <div class="mob-duration-btns">
         <button type="button" class="mob-dur-btn" data-dur="1">1s</button>
         <button type="button" class="mob-dur-btn" data-dur="2">2s</button>
@@ -205,14 +250,14 @@
       </div>
     </div>
     <div class="mob-bar-actions">
-    <button type="button" class="mob-btn" data-act="undo" title="Undo"><svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 7"/></svg><span>Undo</span></button>
-    <button type="button" class="mob-btn" data-act="redo" title="Redo"><svg viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7L21 7"/></svg><span>Redo</span></button>
-    <button type="button" class="mob-btn" data-act="copy" data-need="sel" title="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg><span>Copy</span></button>
-    <button type="button" class="mob-btn" data-act="paste" data-need="clip" title="Paste"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="16" rx="2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><span>Paste</span></button>
+    <button type="button" class="mob-btn" data-act="undo" title="Bekor qilish"><svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 7"/></svg><span>Bekor</span></button>
+    <button type="button" class="mob-btn" data-act="redo" title="Qaytarish"><svg viewBox="0 0 24 24"><path d="M21 7v6h-6"/><path d="M21 13a9 9 0 1 1-3-7.7L21 7"/></svg><span>Qaytar</span></button>
+    <button type="button" class="mob-btn" data-act="copy" data-need="sel" title="Nusxa"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg><span>Nusxa</span></button>
+    <button type="button" class="mob-btn" data-act="paste" data-need="clip" title="Yopishtirish"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="16" rx="2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><span>Yopishtir</span></button>
     <button type="button" class="mob-btn" data-act="float" data-need="video" title="Float"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="1"/><rect x="8" y="9" width="10" height="7" rx="1"/></svg><span>Float</span></button>
-    <button type="button" class="mob-btn" data-act="split" data-need="video" title="Split"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M6 4C4.34315 4 3 5.34315 3 7V17C3 18.6569 4.34315 20 6 20H18C19.6569 20 21 18.6569 21 17V7C21 5.34315 19.6569 4 18 4H6ZM5 7C5 6.44772 5.44772 6 6 6H11V18H6C5.44772 18 5 17.5523 5 17V7ZM13 18H18C18.5523 18 19 17.5523 19 17V7C19 6.44772 18.5523 6 18 6H13V18Z" fill="currentColor"/></svg><span>Split</span></button>
-    <button type="button" class="mob-btn" data-act="dup" data-need="sel" title="Duplicate"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M9 16v2a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"/></svg><span>Dup</span></button>
-    <button type="button" class="mob-btn" data-act="del" data-need="sel" title="Delete"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></svg><span>Del</span></button>
+    <button type="button" class="mob-btn" data-act="split" data-need="video" title="Bo‘lish"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M6 4C4.34315 4 3 5.34315 3 7V17C3 18.6569 4.34315 20 6 20H18C19.6569 20 21 18.6569 21 17V7C21 5.34315 19.6569 4 18 4H6ZM5 7C5 6.44772 5.44772 6 6 6H11V18H6C5.44772 18 5 17.5523 5 17V7ZM13 18H18C18.5523 18 19 17.5523 19 17V7C19 6.44772 18.5523 6 18 6H13V18Z" fill="currentColor"/></svg><span>Bo‘lish</span></button>
+    <button type="button" class="mob-btn" data-act="dup" data-need="sel" title="Nusxa ko‘chirish"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M9 16v2a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-2"/></svg><span>Nusxa</span></button>
+    <button type="button" class="mob-btn" data-act="del" data-need="sel" title="O‘chirish"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M10 11v6M14 11v6"/></svg><span>O‘chir</span></button>
     </div>
   </div>
 
@@ -221,30 +266,43 @@
   <div class="toast" id="toast"></div>
   <div class="loading-overlay" id="loading">
     <div class="spinner"></div>
-    <div>Processing...</div>
+    <div>Ishlanmoqda...</div>
   </div>
 
   <!-- ===== SCRIPTS (tartib muhim — har biri oldingisiga bog'liq) ===== -->
   <!-- ===== AUTH (Supabase) ===== -->
-  <!-- FFmpeg.wasm (MP4 transcode) -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+  <!-- FFmpeg.wasm (MP4 transcode) — B15: endi js/export.js:getFFmpeg() ichida
+       faqat export bosilganda dinamik <script> bilan yuklanadi, sahifa
+       ochilishida emas. -->
   <script src="js/vendor/supabase.js"></script>
   <script src="js/supabase-config.js"></script>
   <script src="js/auth.js"></script>
   <script>
     Auth.requireSession()
       .then((session) => {
+        const chip = document.getElementById('user-chip');
+        const emailEl = document.getElementById('user-email');
+        const so = document.getElementById('signout-btn');
         if (session) {
-          const emailEl = document.getElementById('user-email');
+          // Account bilan: email + Chiqish
           if (emailEl) emailEl.textContent = session.user.email || '';
-          const chip = document.getElementById('user-chip');
           if (chip) chip.hidden = false;
-          const so = document.getElementById('signout-btn');
-          if (so) so.addEventListener('click', () => Auth.signOut());
+          if (so) {
+            so.textContent = 'Chiqish';
+            so.onclick = () => Auth.signOut();
+          }
+        } else if (Auth.isGuest && Auth.isGuest()) {
+          // Account yo'q (local): Mehmon + Login → ./login
+          if (emailEl) emailEl.textContent = 'Mehmon';
+          if (chip) chip.hidden = false;
+          if (so) {
+            so.textContent = 'Kirish';
+            so.onclick = () => {
+              Auth.setGuestFlag(false);
+              location.href = Auth.LOGIN_PAGE;
+            };
+          }
         }
-        // Redirect kutilyotgan promise hech qachon resolve bo'lmasligi mumkin —
-        // faqat haqiqiy sessiya yoki local bypass da UI ochiladi.
         document.documentElement.classList.remove('auth-pending');
       })
       .catch((e) => {
@@ -253,9 +311,16 @@
       });
   </script>
 
+  <script src="js/strings.js"></script>
+  <script src="js/analytics.js"></script>
   <script src="js/state.js"></script>
   <script src="js/dom.js"></script>
   <script src="js/helpers.js"></script>
+  <!-- Storage adapterlar projects/upload dan OLDIN — guest/local da IndexedDB tayyor bo'lsin -->
+  <script src="js/storage-adapter.js"></script>
+  <script src="js/local-media.js"></script>
+  <script src="js/local-adapter.js"></script>
+  <script src="js/cloud-adapter.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/upload.js"></script>
   <script src="js/playback.js"></script>
@@ -276,5 +341,32 @@
   <script src="js/history.js"></script>
   <script src="js/canvas.js"></script>
   <script src="js/mobile-toolbar.js"></script>
+  <script src="js/onboarding.js"></script>
+  <script src="js/fx-panel.js"></script>
+  <script src="js/local-to-cloud.js"></script>
+  <script src="js/auth-choose.js"></script>
+  <script src="js/pwa.js"></script>
+  <!-- Faza 3: tezlik -->
+  <script src="js/snap.js"></script>
+  <script src="js/silence.js"></script>
+  <script src="js/beat.js"></script>
+  <script src="js/markers.js"></script>
+  <script src="js/inspector.js"></script>
+  <script src="js/silence-ui.js"></script>
+  <script src="js/track-controls.js"></script>
+  <!-- Faza 4: audio -->
+  <script src="js/audio-logic.js"></script>
+  <script src="js/audio-engine.js"></script>
+  <script src="js/voice-over.js"></script>
+  <!-- Faza 1+5: export core + matn/subtitr (beta; core state Faza2) -->
+  <script src="js/export-core.js"></script>
+  <script src="js/text-core.js"></script>
+  <script src="js/text-fonts.js"></script>
+  <script src="js/subtitles.js"></script>
+  <script src="js/captions-beta.js"></script>
+  <!-- Faza 2: yagona renderer (ES module) -->
+  <script type="module" src="render/compositor.js"></script>
+  <script type="module" src="render/frame-provider.js"></script>
+  <script type="module" src="render/preview-canvas.js"></script>
 </body>
 </html>

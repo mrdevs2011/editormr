@@ -9,7 +9,8 @@
       isImage: false,
       filmstrip: null,
 
-      canvasRatio: 'fit',        // canvas nisbati: '9:16' | '1:1' | '16:9' | '4:5' | '3:4' | '2:3' | '2.35:1' | 'fit' (js/canvas.js)
+      canvasRatio: 'fit',        // UI preset id: '9:16' | '1:1' | ... | 'fit' (js/canvas.js)
+      canvas: null,              // Faza 2A-1: {w,h,fps} yoki null (= asl nisbat, birinchi asosiy clip)
 
       isPlaying: false,
       currentTime: 0,
@@ -17,6 +18,14 @@
 
       music: null,
       textClips: [],             // [{ id, text, startTime, duration, offsetY, x, y, fontSize, color, bold, align, bgColor, bgOpacity }]
+      // Faza 4/5/3 integratsiya (schema v3): core state — parallel branch'lardan birlashtirilgan
+      audioClips: [],            // [{ id, kind, fileId, name, track, startTime, trimStart, trimEnd, gain, muted, fadeIn, fadeOut, duck }]
+      duckingSettings: { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true },
+      subtitles: null,           // { cues: [...], style: {...} } — TextCore.defaultSubtitles()
+      markers: [],               // [{ id, time, label, kind }]
+      inPoint: null,
+      outPoint: null,
+      extras: {},                // boshqa kengaytmalar (trackState va h.k.)
       clipboard: null,           // { type: 'clip'|'text', data: {...} } — faqat sessiya ichida
 
       isDragging: false,
@@ -34,7 +43,9 @@
       isPlayheadDragging: false,
       isExporting: false,
 
-      // Project (IndexedDB da saqlanadi)
+      // Project (Supabase'da saqlanadi — B14 tuzatish: izohda ilgari
+      // "IndexedDB" deyilgan edi, eskirgan; haqiqiy kod js/storage.js orqali
+      // Supabase Postgres + Storage bucket'ga yozadi)
       projectId: null,
       projectName: '',
       projectCreatedAt: 0,
@@ -49,6 +60,26 @@
 
     function makeClipId() {
       return 'c' + Math.random().toString(36).slice(2, 9);
+    }
+
+    // B11 tuzatish: ilgari video-clip literali `upload.js`da 3 joyda (rasm,
+    // video muvaffaqiyatli, video xato) deyarli aynan nusxa ko'chirilgan edi.
+    // Endi bitta joy — maydonlar to'planib qolsa ham (masalan yangi effekt
+    // maydoni) faqat shu yerda qo'shiladi.
+    function createClip(overrides) {
+      // Faza 2A-1: fit/transform/opacity — default yangi clip uchun.
+      // Eski loyihalar migrateProjectMeta orqali 'contain' oladi (preview o'zgarmasin).
+      // Yangi loyihalarda UI default fit: cover (2A-2); gorizontal→vertikal: blur.
+      return Object.assign({
+        id: makeClipId(),
+        startTime: 0, trimStart: 0, trimEnd: 5, offsetY: 0, track: 0,
+        url: null, file: null, duration: 5, isImage: false, filmstrip: null, name: '',
+        volume: 1, muted: false, speed: 1, fadeIn: 0, fadeOut: 0,
+        transitionType: 'none', transitionDuration: 0.3,
+        fit: 'cover',
+        transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+        opacity: 1,
+      }, overrides || {});
     }
 
     function makeTextClipId() {

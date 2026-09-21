@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uz">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Privacy Policy · EditorMR</title>
+  <title>Maxfiylik siyosati · EMR VideoEditor</title>
   <meta name="theme-color" content="#191d22" />
   <link rel="icon" href="../favicon.ico" sizes="any" />
   <link rel="stylesheet" href="../css/legal.css" />
@@ -15,7 +15,7 @@
       <a class="back" href="../login/">&larr; Back to sign in</a>
     </div>
 
-    <h1>Privacy Policy</h1>
+    <h1>Maxfiylik siyosati</h1>
     <p class="meta">EMR &middot; Last updated: September 20, 2026</p>
 
     <p>EMR ("we", "the app") is a browser-based video editor. This page explains what data the app handles and why. It is written to be short and plain.</p>
@@ -29,7 +29,7 @@
     <p>We do not request access to your Gmail, Drive, contacts, or any other Google data.</p>
 
     <h2>2. Your projects and media</h2>
-    <p>At this time, your projects, videos, images, and audio are stored <b>locally in your own browser</b> (IndexedDB). They are not uploaded to our servers. Clearing your browser data removes them. If we add cloud storage in the future, we will update this page before it goes live.</p>
+    <p>Your projects, videos, images, and audio are uploaded to our cloud storage (Supabase) so your projects stay available across the devices you sign in on. They are not kept only in your browser — access to them is tied to your account. If this changes, we will update this page before it goes live.</p>
 
     <h2>3. How we use data</h2>
     <ul>
@@ -58,7 +58,18 @@
     <h2>8. Contact</h2>
     <p>Questions or deletion requests: <a href="mailto:muhammad11rasul2011@gmail.com">muhammad11rasul2011@gmail.com</a></p>
 
-    <p class="foot"><a href="../terms/">Terms of Service</a> &middot; <a href="../login/">Sign in</a></p>
+    <p class="foot"><a href="../terms/">Foydalanish shartlari</a> &middot; <a href="../login/">Kirish</a></p>
   </div>
+
+    <h2>Anonymous usage and error logs</h2>
+    <p>To improve reliability we may store <b>anonymous</b> events and client error reports in our database:</p>
+    <ul>
+      <li><b>What is stored:</b> event names such as <code>project_created</code>, <code>export_started</code>, <code>export_completed</code>, <code>export_failed</code>, <code>onboarding_completed</code>, <code>pwa_installed</code> (if available); approximate time; optional non-identifying metadata (e.g. clip count, quality label).</li>
+      <li><b>What is <u>not</u> stored:</b> your email, IP address, file names, video content, project titles, or any cookie that tracks you across sessions for advertising.</li>
+      <li><b>Errors:</b> browser error message and a shortened stack trace (paths stripped), page URL path — so we can fix crashes. Duplicate messages in the same tab are rate-limited.</li>
+      <li><b>Deletion:</b> because these records are not tied to your account identity, there is nothing personal to “delete” for a specific user. Data is used only for aggregate reliability.</li>
+    </ul>
+    <p>No third-party analytics scripts (Google Analytics, Sentry, etc.) are loaded. Data stays in our Supabase project with insert-only access from the app.</p>
+
 </body>
 </html>

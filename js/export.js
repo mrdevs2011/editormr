@@ -1,4 +1,17 @@
     // ===================== EXPORT (real timeline render) =====================
+
+    // B7 yamog'i: export real-time (rAF/captureStream) ketyapti, tab yopilsa
+    // yoki yangilansa natija yo'qoladi, fonga o'tsa esa kadr tushib qolishi
+    // mumkin. Ikkalasiga ham to'liq yechim emas (haqiqiy fix — Faza 1,
+    // offline/WebCodecs render), lekin eng arzon himoya: ogohlantirish +
+    // ekranni o'chirmaslik.
+    function exportBeforeUnloadGuard(e) {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    }
+    let _exportWakeLock = null;
+
     exportBtn.addEventListener('click', async () => {
       if (!state.videoClips || !state.videoClips.length) {
         showToast('Export qilish uchun video/rasm qo\'shing');
@@ -7,15 +20,32 @@
       if (state.isExporting) return;
       state.isExporting = true;
       showExportProgressModal(0);
+      try { if (typeof track === 'function') track('export_started', { clip_count: (state.videoClips||[]).length, has_music: !!state.music, has_text: !!(state.textClips&&state.textClips.length) }); } catch (_) {}
+
+      window.addEventListener('beforeunload', exportBeforeUnloadGuard);
+      if (navigator.wakeLock && typeof navigator.wakeLock.request === 'function') {
+        try {
+          _exportWakeLock = await navigator.wakeLock.request('screen');
+        } catch (_) {
+          _exportWakeLock = null; // qo'llab-quvvatlanmasa yoki ruxsat berilmasa — jim davom et
+        }
+      }
 
       try {
         await exportTimeline();
+        try { if (typeof track === 'function') track('export_completed', { clip_count: (state.videoClips||[]).length }); } catch (_) {}
       } catch (err) {
         console.error(err);
-        showToast('Export xatosi: ' + (err.message || 'noma\'lum'));
+        showToast((typeof t==='function'?t('toast_export_error',{msg: err.message||"noma'lum"}):('Export xatosi: '+(err.message||"noma'lum"))));
+        try { if (typeof track === 'function') track('export_failed', { reason: String(err.message||'unknown').slice(0,80) }); } catch (_) {}
         closeExportUiModal();
       } finally {
         state.isExporting = false;
+        window.removeEventListener('beforeunload', exportBeforeUnloadGuard);
+        if (_exportWakeLock) {
+          try { await _exportWakeLock.release(); } catch (_) {}
+          _exportWakeLock = null;
+        }
       }
     });
 
@@ -84,13 +114,24 @@
       }
 
       function drawExportClipFrame(ctx, el, clip, t, outW, outH, alpha) {
-        if (!el || !clip || clip.isImage) return;
-        ensureExportClipOnEl(el, clip, t);
-        if (el.readyState < 2) return;
+        // Faza 2B-5: clip.isImage global state.isImage ga bog'liq emas (B2).
+        if (!el || !clip) return;
+        if (!clip.isImage) {
+          ensureExportClipOnEl(el, clip, t);
+          if (el.readyState < 2) return;
+        }
+        const sw = clip.isImage ? (el.naturalWidth || el.width) : el.videoWidth;
+        const sh = clip.isImage ? (el.naturalHeight || el.height) : el.videoHeight;
+        if (!sw || !sh) return;
         ctx.save();
         ctx.globalAlpha = alpha != null ? alpha : 1;
         try {
-          canvasDrawContain(ctx, el, el.videoWidth, el.videoHeight, 0, 0, outW, outH);
+          const fit = clip.fit || 'contain';
+          if (typeof canvasDrawFit === 'function') {
+            canvasDrawFit(ctx, el, sw, sh, outW, outH, fit);
+          } else {
+            canvasDrawContain(ctx, el, sw, sh, 0, 0, outW, outH);
+          }
         } catch (_) {}
         ctx.restore();
       }
@@ -293,19 +334,21 @@
             return;
           }
 
-          ctx.globalAlpha = 1;
-          ctx.fillStyle = '#000';
-          ctx.fillRect(0, 0, outW, outH);
-
+          // Faza 2B-5: chizish yagona renderFrame orqali (B2–B5).
+          // Audio yo'li o'zgarishsiz — real-time MediaRecorder sikli saqlanadi.
           const trans = typeof getActiveTransition === 'function' ? getActiveTransition(elapsed) : null;
           const clip = findClipAtTime(elapsed);
 
-          if (trans && exportVideoEl) {
-            // Transition zone: blend A → B
+          // Video elementlarni seek/play qilish (renderFrame manba olishi uchun)
+          if (trans) {
             videoPlaying = true;
             exportActiveClipId = trans.from.id;
-            drawExportTransition(ctx, trans, elapsed, outW, outH);
-            // Audio from outgoing clip
+            if (exportVideoEl && !trans.from.isImage) ensureExportClipOnEl(exportVideoEl, trans.from, elapsed);
+            if (exportVideoElB && trans.to && !trans.to.isImage) {
+              const tB = Math.max(trans.to.startTime,
+                Math.min(clipEnd(trans.to) - 0.04, trans.to.startTime + Math.max(0, elapsed - trans.start)));
+              ensureExportClipOnEl(exportVideoElB, trans.to, tB);
+            }
             if (exportVideoAudioEl && !trans.from.isImage) {
               const src = trans.from.url || state.videoUrl;
               if (exportVideoAudioEl.src !== src) exportVideoAudioEl.src = src;
@@ -319,20 +362,7 @@
               if (exportVideoAudioEl.paused) exportVideoAudioEl.play().catch(() => {});
             }
           } else if (clip) {
-            const fadeAlpha = typeof getClipOpacity === 'function' ? getClipOpacity(clip, elapsed) : 1;
-            ctx.globalAlpha = fadeAlpha;
-            if (state.isImage) {
-              const imgEl = document.getElementById('image-preview');
-              if (imgEl?.complete) {
-                const iw = imgEl.naturalWidth || outW;
-                const ih = imgEl.naturalHeight || outH;
-                const scale = Math.min(outW / iw, outH / ih);   // contain (preview bilan bir xil)
-                const dw = iw * scale, dh = ih * scale;
-                ctx.drawImage(imgEl, (outW - dw) / 2, (outH - dh) / 2, dw, dh);
-              }
-            } else if (clip.isImage) {
-              // photo clip — skip
-            } else if (exportVideoEl) {
+            if (!clip.isImage && exportVideoEl) {
               if (!videoPlaying || exportActiveClipId !== clip.id) {
                 videoPlaying = true;
                 exportActiveClipId = clip.id;
@@ -355,14 +385,10 @@
                   exportVideoAudioEl.currentTime = local;
                   exportVideoAudioEl.play().catch(() => {});
                 }
-              }
-              if (exportVideoEl.readyState >= 2) {
-                try {
-                  canvasDrawContain(ctx, exportVideoEl, exportVideoEl.videoWidth, exportVideoEl.videoHeight, 0, 0, outW, outH);
-                } catch (_) {}
+              } else {
+                ensureExportClipOnEl(exportVideoEl, clip, elapsed);
               }
             }
-            ctx.globalAlpha = 1;
           } else if (exportVideoEl && videoPlaying) {
             exportVideoEl.pause();
             if (exportVideoElB) exportVideoElB.pause();
@@ -371,34 +397,130 @@
             exportActiveClipId = null;
           }
 
-          // Float qatlam — asosiy video ustida
-          if (typeof findFloatedAtTime === 'function') {
+          // Float video elementlarni tayyorlash
+          if (typeof findFloatedAtTime === 'function' && exportVideoElF) {
             const floats = findFloatedAtTime(elapsed);
             for (const fc of floats) {
-              const fa = typeof getClipOpacity === 'function' ? getClipOpacity(fc, elapsed) : 1;
-              const padX = outW * 0.07;
-              const padY = outH * 0.07;
-              const fw = outW - padX * 2;
-              const fh = outH - padY * 2;
-              ctx.save();
-              ctx.globalAlpha = fa;
-              if (fc.isImage) {
-                let img = exportFloatImgCache.get(fc.url);
-                if (!img) {
-                  img = new Image();
-                  img.src = fc.url;
-                  exportFloatImgCache.set(fc.url, img);
+              if (!fc.isImage) ensureExportClipOnEl(exportVideoElF, fc, elapsed);
+            }
+          }
+
+          // Yagona chizish
+          const useRenderFrame = window.EMR && typeof window.EMR.renderFrame === 'function';
+          if (useRenderFrame) {
+            const exportProvider = {
+              getFrame(c, sourceTime) {
+                if (!c) return null;
+                if (c.isImage) {
+                  let img = exportFloatImgCache.get(c.url);
+                  if (!img) {
+                    img = new Image();
+                    img.src = c.url;
+                    exportFloatImgCache.set(c.url, img);
+                  }
+                  return (img.complete && img.naturalWidth) ? img : img;
                 }
+                // asosiy A
+                if (exportVideoEl && (exportActiveClipId === c.id || (clip && clip.id === c.id))) {
+                  ensureExportClipOnEl(exportVideoEl, c, elapsed);
+                  return exportVideoEl.readyState >= 2 ? exportVideoEl : exportVideoEl;
+                }
+                if (exportVideoElB && trans && trans.to && trans.to.id === c.id) {
+                  return exportVideoElB.readyState >= 2 ? exportVideoElB : exportVideoElB;
+                }
+                if (exportVideoElF) {
+                  ensureExportClipOnEl(exportVideoElF, c, elapsed);
+                  return exportVideoElF.readyState >= 2 ? exportVideoElF : exportVideoElF;
+                }
+                return null;
+              },
+            };
+            try {
+              window.EMR.renderFrame(ctx, {
+                canvas: state.canvas,
+                clips: state.videoClips,
+                textClips: state.textClips || [],
+                canvasW: outW,
+                canvasH: outH,
+              }, elapsed, exportProvider, {
+                getTransitionLayers: typeof getTransitionLayers === 'function' ? getTransitionLayers : null,
+                clipDuration: typeof clipDuration === 'function' ? clipDuration : null,
+                clipEnd: typeof clipEnd === 'function' ? clipEnd : null,
+                timelineToSource: typeof timelineToSource === 'function' ? timelineToSource : null,
+                isFloated: typeof isFloated === 'function' ? isFloated : null,
+                drawSafeZone: false,
+              });
+            } catch (err) {
+              console.error('[export] renderFrame', err);
+            }
+          } else {
+            // Fallback: eski chizish (modul yuklanmagan bo'lsa)
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, outW, outH);
+            if (trans && exportVideoEl) {
+              drawExportTransition(ctx, trans, elapsed, outW, outH);
+            } else if (clip) {
+              const fadeAlpha = typeof getClipOpacity === 'function' ? getClipOpacity(clip, elapsed) : 1;
+              if (clip.isImage) {
+                let img = exportFloatImgCache.get(clip.url);
+                if (!img) { img = new Image(); img.src = clip.url; exportFloatImgCache.set(clip.url, img); }
                 if (img.complete && img.naturalWidth) {
-                  try { canvasDrawContain(ctx, img, img.naturalWidth, img.naturalHeight, padX, padY, fw, fh); } catch (_) {}
+                  ctx.save();
+                  ctx.globalAlpha = fadeAlpha;
+                  const fit = clip.fit || 'contain';
+                  if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, img, img.naturalWidth, img.naturalHeight, outW, outH, fit);
+                  else canvasDrawContain(ctx, img, img.naturalWidth, img.naturalHeight, 0, 0, outW, outH);
+                  ctx.restore();
                 }
-              } else if (exportVideoElF) {
-                ensureExportClipOnEl(exportVideoElF, fc, elapsed);
-                if (exportVideoElF.readyState >= 2) {
-                  try { canvasDrawContain(ctx, exportVideoElF, exportVideoElF.videoWidth, exportVideoElF.videoHeight, padX, padY, fw, fh); } catch (_) {}
-                }
+              } else if (exportVideoEl && exportVideoEl.readyState >= 2) {
+                ctx.save();
+                ctx.globalAlpha = fadeAlpha;
+                const fit = clip.fit || 'contain';
+                if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, exportVideoEl, exportVideoEl.videoWidth, exportVideoEl.videoHeight, outW, outH, fit);
+                else canvasDrawContain(ctx, exportVideoEl, exportVideoEl.videoWidth, exportVideoEl.videoHeight, 0, 0, outW, outH);
+                ctx.restore();
               }
-              ctx.restore();
+            }
+            if (typeof findFloatedAtTime === 'function') {
+              const floats = findFloatedAtTime(elapsed);
+              for (const fc of floats) {
+                const fa = typeof getClipOpacity === 'function' ? getClipOpacity(fc, elapsed) : 1;
+                ctx.save();
+                ctx.globalAlpha = fa * (fc.opacity != null ? fc.opacity : 1);
+                if (fc.isImage) {
+                  let img = exportFloatImgCache.get(fc.url);
+                  if (!img) { img = new Image(); img.src = fc.url; exportFloatImgCache.set(fc.url, img); }
+                  if (img.complete && img.naturalWidth) {
+                    const fit = fc.fit || 'contain';
+                    if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, img, img.naturalWidth, img.naturalHeight, outW, outH, fit);
+                    else canvasDrawContain(ctx, img, img.naturalWidth, img.naturalHeight, 0, 0, outW, outH);
+                  }
+                } else if (exportVideoElF) {
+                  ensureExportClipOnEl(exportVideoElF, fc, elapsed);
+                  if (exportVideoElF.readyState >= 2) {
+                    const fit = fc.fit || 'contain';
+                    if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, exportVideoElF, exportVideoElF.videoWidth, exportVideoElF.videoHeight, outW, outH, fit);
+                    else canvasDrawContain(ctx, exportVideoElF, exportVideoElF.videoWidth, exportVideoElF.videoHeight, 0, 0, outW, outH);
+                  }
+                }
+                ctx.restore();
+              }
+            }
+            // Matn (fallback)
+            if (typeof state.textClips !== 'undefined') {
+              for (const tc of (state.textClips || [])) {
+                if (elapsed < tc.startTime || elapsed >= tc.startTime + Math.max(0.1, tc.duration || 0)) continue;
+                // B4 formula
+                const fontSize = (tc.fontSize || 32) * (outH / 720);
+                ctx.save();
+                ctx.font = (tc.bold ? 'bold ' : '') + fontSize + 'px sans-serif';
+                ctx.textAlign = tc.align || 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = tc.color || '#fff';
+                ctx.fillText(tc.text || '', (tc.x != null ? tc.x : 0.5) * outW, (tc.y != null ? tc.y : 0.85) * outH);
+                ctx.restore();
+              }
             }
           }
 
@@ -496,13 +618,38 @@
       const baseName = 'edited-' + ((state.videoFile && state.videoFile.name)?.replace(/\.[^.]+$/, '') || state.projectName || 'video') + '.' + ext;
 
       const mb = (blob.size / (1024 * 1024)).toFixed(1);
-      showToast('Export tayyor! (' + mb + ' MB)');
+      showToast('Eksport tayyor! (' + mb + ' MB)');
 
       // Kichik modal: Download / MRdrive (to'liq ekran lock yo'q)
       showExportResultModal(blob, baseName);
     }
 
     // ---------- MP4 (ffmpeg.wasm) ----------
+    // B15 tuzatish: ilgari ffmpeg.js + @ffmpeg/util index.html'da <script> bilan
+    // HAR SAHIFA YUKLANGANDA olinardi (export qilinmasa ham). Endi shu ikkita
+    // kutubxona faqat birinchi marta export (MP4) kerak bo'lganda inject qilinadi.
+    const FFMPEG_SCRIPTS = [
+      'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js',
+      'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js',
+    ];
+    let ffmpegScriptsLoading = null;
+    function loadFFmpegScripts() {
+      if (window.FFmpegWASM || window.FFmpeg) return Promise.resolve();
+      if (ffmpegScriptsLoading) return ffmpegScriptsLoading;
+      ffmpegScriptsLoading = (async () => {
+        for (const src of FFMPEG_SCRIPTS) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('FFmpeg skripti yuklanmadi: ' + src));
+            document.head.appendChild(s);
+          });
+        }
+      })();
+      return ffmpegScriptsLoading;
+    }
+
     let ffmpegInstance = null;
     let ffmpegLoading = null;
 
@@ -510,6 +657,7 @@
       if (ffmpegInstance) return ffmpegInstance;
       if (ffmpegLoading) return ffmpegLoading;
       ffmpegLoading = (async () => {
+        await loadFFmpegScripts();
         const FFmpegClass = (window.FFmpegWASM && window.FFmpegWASM.FFmpeg)
           || (window.FFmpeg && window.FFmpeg.FFmpeg)
           || window.FFmpeg;
@@ -586,7 +734,7 @@
           '<div class="export-ui-head">' +
             '<div class="export-ui-ring" aria-hidden="true"><span id="export-ui-ringp">0</span>%</div>' +
             '<div class="export-ui-copy">' +
-              '<div class="export-ui-title" id="export-ui-title">Export</div>' +
+              '<div class="export-ui-title" id="export-ui-title">Eksport</div>' +
               '<div class="export-ui-sub" id="export-ui-sub">Ishlashda davom eting</div>' +
             '</div>' +
           '</div>' +
@@ -613,7 +761,7 @@
       const title = overlay.querySelector('#export-ui-title');
       const sub = overlay.querySelector('#export-ui-sub');
       const actions = overlay.querySelector('#export-ui-actions');
-      if (title) title.textContent = 'Export';
+      if (title) title.textContent = 'Eksport';
       if (sub) sub.textContent = 'Ishlashda davom eting';
       if (actions) { actions.hidden = true; actions.innerHTML = ''; }
       updateExportProgress(pct || 0);
@@ -626,7 +774,7 @@
       const title = document.getElementById('export-ui-title');
       if (ring) ring.textContent = String(pct);
       if (bar) bar.style.width = pct + '%';
-      if (title && !document.querySelector('#export-ui-modal.is-done')) title.textContent = 'Export';
+      if (title && !document.querySelector('#export-ui-modal.is-done')) title.textContent = 'Eksport';
       const card = document.querySelector('#export-ui-modal .export-ui-card');
       if (card) card.style.setProperty('--p', String(pct / 100));
     }
@@ -706,7 +854,7 @@
       overlay.className = 'mrdrive-modal-overlay';
       overlay.innerHTML =
         '<div class="mrdrive-modal" role="dialog">' +
-        '<div class="mrdrive-title">Export tayyor (WebM)</div>' +
+        '<div class="mrdrive-title">Eksport tayyor (WebM)</div>' +
         '<div class="mrdrive-ok">Kompyuterga WebM yuklandi ✓</div>' +
         '<div class="mrdrive-status" id="export-fmt-status"></div>' +
         '<div class="mrdrive-actions" style="flex-wrap:wrap">' +
@@ -753,7 +901,7 @@
       };
     }
 
-    // ---------- MRdrive (alohida Supabase client — editormr Auth'ga tegilmaydi) ----------
+    // ---------- MRdrive (alohida Supabase client — EMR Auth'ga tegilmaydi) ----------
     const MRDRIVE_DEFAULTS = {
       url: 'https://hharvpgnqmjbbgnfsauq.supabase.co',
       anonKey: 'sb_publishable_enRXsK8Yqzn_goNRUHBocg_DPvuWUDb',
@@ -868,7 +1016,7 @@
       overlay.className = 'mrdrive-modal-overlay';
       overlay.innerHTML =
         '<div class="mrdrive-modal" role="dialog" aria-modal="true">' +
-        '<div class="mrdrive-title">Export tayyor</div>' +
+        '<div class="mrdrive-title">Eksport tayyor</div>' +
         '<div class="mrdrive-ok">Kompyuterga yuklandi ✓</div>' +
         '<div class="mrdrive-status" id="mrdrive-status"></div>' +
         '<div class="mrdrive-link-row" id="mrdrive-link-row" hidden>' +

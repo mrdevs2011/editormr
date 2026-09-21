@@ -540,39 +540,33 @@
       /* Matn (text overlay) — suzuvchi panel */
       .text-float-bar {
         bottom: calc(var(--tab-bar-h) + var(--tab-safe-b) + 14px);
-        max-width: calc(100vw - 32px);
-        gap: 8px;
-        padding: 8px 10px;
-        border-radius: 14px;
+        max-width: calc(100vw - 24px);
+        gap: 6px;
+        padding: 8px;
+        border-radius: 16px;
       }
 
       .text-float-bar button,
-      .text-float-bar label {
+      .text-float-bar label.tfb-swatch {
         height: 40px;
         min-width: 40px;
-        padding: 0 12px;
         border-radius: 10px;
-        font-size: 14px;
       }
 
       .text-float-bar input[type="color"] {
-        width: 30px;
-        height: 30px;
+        width: 26px;
+        height: 26px;
       }
 
-      .text-float-bar input[type="range"] {
-        width: 120px;
+      .text-float-bar .tfb-size-val {
+        font-size: 13px;
+        min-width: 30px;
       }
 
-      .text-float-bar .tfb-sep {
-        height: 24px;
-      }
-
-      .text-float-bar .tfb-size {
-        width: 64px;
-        height: 38px;
-        font-size: 15px;
-        border-radius: 8px;
+      .text-float-bar .tfb-preset {
+        width: 32px;
+        min-width: 32px;
+        height: 32px;
       }
 
       .text-overlay-item .toi-handle {
