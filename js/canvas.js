@@ -16,7 +16,7 @@
       { id: '3:4',    r: 3 / 4,    label: '3:4',    title: '3:4',             sub: 'O‘rtacha Vertikal',   use: 'Pinterest, Ijtimoiy tarmoq postlari' },
       { id: '2:3',    r: 2 / 3,    label: '2:3',    title: '2:3',             sub: 'Portret Baland',      use: 'Pinterest, Vertikal posterlar' },
       { id: '2.35:1', r: 2.35,     label: '2.35:1', title: '2.1:1 / 2.35:1',  sub: 'Ultra-keng/Kino',     use: 'Kino stili, Treylerlar, Filmlar' },
-      { id: 'fit',    r: 0,        label: 'Fit',    title: 'Fit',             sub: 'Original',            use: 'Videoning o‘z o‘lchami, Manbaga moslashish' },
+      { id: 'fit',    r: 0,        label: 'Moslash', title: 'Moslash',         sub: 'Asl o‘lcham',            use: 'Videoning o‘z o‘lchami, Manbaga moslashish' },
     ];
 
     function canvasPresetById(id) {

@@ -163,9 +163,26 @@ h1 {
   text-align: center;
 }
 
-/* ---------- dev note ---------- */
+/* ---------- Accountsiz davom etish (Privacy Policy ostida) ---------- */
+.guest-link-wrap {
+  margin-top: 18px;
+  max-width: 400px;
+  text-align: center;
+}
+.guest-link {
+  color: var(--blue);
+  font-size: 0.9rem;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+.guest-link:hover {
+  color: var(--white);
+  text-decoration: underline;
+}
+
+/* ---------- dev note (faqat Supabase sozlanmaganda) ---------- */
 .dev-note {
-  margin-top: 20px;
+  margin-top: 16px;
   max-width: 400px;
   padding: 10px 14px;
   border: 1px dashed var(--blue-dim);

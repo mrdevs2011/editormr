@@ -6,6 +6,19 @@
 
     const BUCKET = 'project-media';
 
+    /** Account yo'q / sessiya yo'q → local (IndexedDB). UI bir xil qoladi. */
+    function isCloudSession() {
+      try {
+        return !!(window.Auth && window.Auth.client && window.Auth.session);
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function localAdapter() {
+      return window.LocalAdapter || null;
+    }
+
     function sbClient() {
       if (!window.Auth || !window.Auth.client) throw new Error('Supabase ulanmagan');
       return window.Auth.client;
@@ -112,6 +125,11 @@
     }
 
     async function dbListProjects() {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.listProjects();
+        return [];
+      }
       const uid = await currentUserId();
       const { data, error } = await sbClient()
         .from('projects').select('*').eq('user_id', uid);
@@ -132,6 +150,11 @@
     }
 
     async function dbGetProject(id) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.getProject(id);
+        return null;
+      }
       const uid = await currentUserId();
       const { data, error } = await sbClient()
         .from('projects').select('*').eq('id', id).eq('user_id', uid).maybeSingle();
@@ -140,6 +163,11 @@
     }
 
     async function dbGetFiles(projectId) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.getFiles(projectId);
+        return [];
+      }
       const uid = await currentUserId();
       const { data: row, error } = await sbClient()
         .from('projects').select('file_names').eq('id', projectId).eq('user_id', uid).maybeSingle();
@@ -160,6 +188,11 @@
     // Meta + yangi fayllar + keraksiz fayllar — avval yuklaymiz, keyin meta yozamiz,
     // oxirida ortiqchasini o'chiramiz (shunday tartibda hech qachon "meta bor-u fayl yo'q" holat bo'lmaydi)
     async function dbSaveProject(meta, newFiles, removedFileIds, opts) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (!loc) throw new Error('Local saqlash mavjud emas');
+        return await loc.saveProject(meta, newFiles, removedFileIds, opts);
+      }
       const uid = await currentUserId();
       opts = opts || {};
       const expected = opts.expectedUpdatedAt;
@@ -284,6 +317,7 @@
     }
 
     async function dbAcquireProjectLock(projectId, opts) {
+      if (!isCloudSession()) return true;
       if (!projectId) return true;
       const steal = !!(opts && opts.steal);
       const now = Date.now();
@@ -310,6 +344,7 @@
     }
 
     async function dbOwnsProjectLock(projectId) {
+      if (!isCloudSession()) return true;
       if (!projectId) return false;
       const { fileNames } = await dbReadFileNames(projectId);
       const info = lockInfoFromFileNames(fileNames);
@@ -318,6 +353,7 @@
     }
 
     async function dbHeartbeatProjectLock(projectId) {
+      if (!isCloudSession()) return true;
       if (!projectId) return true;
       const session = editorSessionId();
       const { fileNames } = await dbReadFileNames(projectId);
@@ -329,6 +365,7 @@
     }
 
     async function dbReleaseProjectLock(projectId) {
+      if (!isCloudSession()) return true;
       if (!projectId) return;
       try {
         const session = editorSessionId();
@@ -341,6 +378,11 @@
     }
 
     async function dbRenameProject(id, name) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.renameProject(id, name);
+        return;
+      }
       const uid = await currentUserId();
       const { error } = await sbClient()
         .from('projects').update({ name, updated_at: Date.now() }).eq('id', id).eq('user_id', uid);
@@ -348,6 +390,11 @@
     }
 
     async function dbDeleteProject(id) {
+      if (!isCloudSession()) {
+        const loc = localAdapter();
+        if (loc) return await loc.deleteProject(id);
+        return;
+      }
       const uid = await currentUserId();
       const { data: row } = await sbClient()
         .from('projects').select('file_names').eq('id', id).eq('user_id', uid).maybeSingle();

@@ -31,8 +31,8 @@
     onboarding_step1_body: "Video yoki rasmni bu yerga tashlang yoki qo'shish tugmasini bosing.",
     onboarding_step2_title: "Timeline'da kesing",
     onboarding_step2_body: "Playheadni siljiting, Split (S) bilan bo'ling, ortiqchasini o'chiring.",
-    onboarding_step3_title: "Export",
-    onboarding_step3_body: "Tayyor bo'lgach Export tugmasini bosing — natija MP4 bo'ladi.",
+    onboarding_step3_title: "Eksport",
+    onboarding_step3_body: "Tayyor bo'lgach Eksport tugmasini bosing — natija MP4 bo'ladi.",
     dashboard_empty_title: "Birinchi videongizni tashlang",
     dashboard_empty_body: "Telefon yoki kompyuterdan video/rasm tashlang — montaj shu yerda boshlanadi.",
 
@@ -49,6 +49,24 @@
     FONT_FALLBACK: "Shrift yuklanmaguncha tizim shrifti ko'rinadi",
 
     app_name: "EMR VideoEditor",
+
+    btn_signout: "Chiqish",
+    btn_login: "Kirish",
+    btn_export: "Eksport",
+    btn_undo: "Bekor qilish",
+    btn_redo: "Qaytarish",
+    btn_split: "Bo‘lish",
+    btn_delete: "O‘chirish",
+    btn_copy: "Nusxa olish",
+    btn_paste: "Yopishtirish",
+    label_projects: "Loyihalar",
+    label_timeline: "Vaqt chizig‘i",
+    label_duration: "Davomiylik",
+    label_speed: "Tezlik",
+    label_transition: "O‘tish",
+    guest_badge: "Mehmon",
+    processing: "Ishlanmoqda...",
+
     app_description: "Brauzerda tez video montaj — kesish, transition, matn, musiqa, export. O'zbekcha.",
   };
 

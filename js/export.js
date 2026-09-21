@@ -618,7 +618,7 @@
       const baseName = 'edited-' + ((state.videoFile && state.videoFile.name)?.replace(/\.[^.]+$/, '') || state.projectName || 'video') + '.' + ext;
 
       const mb = (blob.size / (1024 * 1024)).toFixed(1);
-      showToast('Export tayyor! (' + mb + ' MB)');
+      showToast('Eksport tayyor! (' + mb + ' MB)');
 
       // Kichik modal: Download / MRdrive (to'liq ekran lock yo'q)
       showExportResultModal(blob, baseName);
@@ -734,7 +734,7 @@
           '<div class="export-ui-head">' +
             '<div class="export-ui-ring" aria-hidden="true"><span id="export-ui-ringp">0</span>%</div>' +
             '<div class="export-ui-copy">' +
-              '<div class="export-ui-title" id="export-ui-title">Export</div>' +
+              '<div class="export-ui-title" id="export-ui-title">Eksport</div>' +
               '<div class="export-ui-sub" id="export-ui-sub">Ishlashda davom eting</div>' +
             '</div>' +
           '</div>' +
@@ -761,7 +761,7 @@
       const title = overlay.querySelector('#export-ui-title');
       const sub = overlay.querySelector('#export-ui-sub');
       const actions = overlay.querySelector('#export-ui-actions');
-      if (title) title.textContent = 'Export';
+      if (title) title.textContent = 'Eksport';
       if (sub) sub.textContent = 'Ishlashda davom eting';
       if (actions) { actions.hidden = true; actions.innerHTML = ''; }
       updateExportProgress(pct || 0);
@@ -774,7 +774,7 @@
       const title = document.getElementById('export-ui-title');
       if (ring) ring.textContent = String(pct);
       if (bar) bar.style.width = pct + '%';
-      if (title && !document.querySelector('#export-ui-modal.is-done')) title.textContent = 'Export';
+      if (title && !document.querySelector('#export-ui-modal.is-done')) title.textContent = 'Eksport';
       const card = document.querySelector('#export-ui-modal .export-ui-card');
       if (card) card.style.setProperty('--p', String(pct / 100));
     }
@@ -854,7 +854,7 @@
       overlay.className = 'mrdrive-modal-overlay';
       overlay.innerHTML =
         '<div class="mrdrive-modal" role="dialog">' +
-        '<div class="mrdrive-title">Export tayyor (WebM)</div>' +
+        '<div class="mrdrive-title">Eksport tayyor (WebM)</div>' +
         '<div class="mrdrive-ok">Kompyuterga WebM yuklandi ✓</div>' +
         '<div class="mrdrive-status" id="export-fmt-status"></div>' +
         '<div class="mrdrive-actions" style="flex-wrap:wrap">' +
@@ -1016,7 +1016,7 @@
       overlay.className = 'mrdrive-modal-overlay';
       overlay.innerHTML =
         '<div class="mrdrive-modal" role="dialog" aria-modal="true">' +
-        '<div class="mrdrive-title">Export tayyor</div>' +
+        '<div class="mrdrive-title">Eksport tayyor</div>' +
         '<div class="mrdrive-ok">Kompyuterga yuklandi ✓</div>' +
         '<div class="mrdrive-status" id="mrdrive-status"></div>' +
         '<div class="mrdrive-link-row" id="mrdrive-link-row" hidden>' +

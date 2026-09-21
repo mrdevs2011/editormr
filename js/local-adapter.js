@@ -77,8 +77,9 @@
       try { await Media.deleteFile(meta.id, fid); } catch (_) {}
     }
 
-    // file_names xarita (cloud bilan mos)
-    const fileNames = { ...(meta.fileNames || {}) };
+    // file_names xarita (cloud bilan mos) — mavjud meta + yangi
+    const existing = await getProject(meta.id);
+    const fileNames = { ...((existing && existing.fileNames) || meta.fileNames || {}) };
     for (const f of newFiles || []) fileNames[f.id] = f.name;
     for (const fid of removedFileIds || []) delete fileNames[fid];
 

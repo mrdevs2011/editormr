@@ -635,7 +635,9 @@
         list = await dbListProjects();
       } catch (err) {
         console.warn('Projects unavailable', err);
-        failed = true;
+        // Account yo'q / local — UI o'zgarmasin: oddiy bo'sh holat
+        list = [];
+        failed = false;
       }
 
       const sortEl = document.getElementById('project-sort');
@@ -654,8 +656,8 @@
       const label = document.getElementById('projects-label');
       if (label) {
         label.textContent = list.length
-          ? ('Projects (' + list.length + ')')
-          : 'Projects';
+          ? ('Loyihalar (' + list.length + ')')
+          : 'Loyihalar';
       }
       const sortWrap = document.getElementById('dash-sort');
       if (sortWrap) {
@@ -918,7 +920,7 @@
           lockedByOther = true;
         } else {
           setHashForProject(null);
-          showToast('Project ochilmadi: ' + (err.message || 'xato'));
+          showToast('Loyiha ochilmadi: ' + (err.message || 'xato'));
           if (editorScreen.style.display !== 'flex') renderDashboard();
         }
       } finally {

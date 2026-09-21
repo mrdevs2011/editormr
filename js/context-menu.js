@@ -97,7 +97,7 @@
       menu.className = 'clip-context-menu';
 
       const copyBtn = document.createElement('button');
-      copyBtn.textContent = 'Copy';
+      copyBtn.textContent = 'Nusxa olish';
       copyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         hideClipContextMenu();
@@ -107,7 +107,7 @@
       menu.appendChild(copyBtn);
 
       const dupBtn = document.createElement('button');
-      dupBtn.textContent = 'Duplicate';
+      dupBtn.textContent = 'Nusxa ko‘chirish';
       dupBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         hideClipContextMenu();
@@ -117,7 +117,7 @@
       menu.appendChild(dupBtn);
 
       const splitBtn = document.createElement('button');
-      splitBtn.textContent = 'Split';
+      splitBtn.textContent = 'Bo‘lish';
       const t = state.currentTime;
       const canSplit = t > clip.startTime + 0.05 && t < clipEnd(clip) - 0.05;
       splitBtn.disabled = !canSplit;
@@ -158,7 +158,7 @@
           hideClipContextMenu();
           if (typeof scheduleSave === 'function') scheduleSave();
           if (window.EMR && window.EMR.requestPreviewRedraw) window.EMR.requestPreviewRedraw(true);
-          showToast('Fit: ' + mode);
+          showToast('Sig‘dirish: ' + mode);
         });
         fitRow.appendChild(b);
       });
@@ -220,7 +220,7 @@
       row.addEventListener('pointerdown', (e) => e.stopPropagation());
       const lab = document.createElement('span');
       lab.className = 'ctx-speed-label';
-      lab.textContent = 'Duration';
+      lab.textContent = 'Davomiylik';
       row.appendChild(lab);
       const cur = Math.max(0.1, (clip.trimEnd || 5) - (clip.trimStart || 0));
       for (const d of durations) {
@@ -250,7 +250,7 @@
       typeRow.addEventListener('pointerdown', (e) => e.stopPropagation());
       const typeLab = document.createElement('span');
       typeLab.className = 'ctx-speed-label';
-      typeLab.textContent = 'Transition';
+      typeLab.textContent = 'O‘tish';
       typeRow.appendChild(typeLab);
       for (const tp of types) {
         const btn = document.createElement('button');
@@ -282,7 +282,7 @@
         durRow.addEventListener('pointerdown', (e) => e.stopPropagation());
         const durLab = document.createElement('span');
         durLab.className = 'ctx-speed-label';
-        durLab.textContent = 'Dur';
+        durLab.textContent = 'Davr';
         durRow.appendChild(durLab);
         for (const d of durations) {
           const btn = document.createElement('button');
@@ -365,7 +365,7 @@
 
       const label = document.createElement('span');
       label.className = 'ctx-speed-label';
-      label.textContent = 'Speed';
+      label.textContent = 'Tezlik';
       row.appendChild(label);
 
       const current = (clip.speed && clip.speed > 0) ? clip.speed : 1;
