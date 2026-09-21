@@ -1,8 +1,8 @@
-# EditorMR — "Kundalik montaj" ilovasiga yo'l xaritasi
+# EMR — "Kundalik montaj" ilovasiga yo'l xaritasi
 
 > Maqsad: telefonda yoki kompyuterda olingan oddiy videoni **link ochilgandan export'gacha 3 daqiqada** montaj qilib beradigan, login/o'rnatish/watermark talab qilmaydigan, o'zbekcha ilova.
 >
-> Bu hujjat `editormr-production.zip` ichidagi kodni **o'qib** yozildi (7.5K qator JS, 242 fayl). Kodga tegilmagan. Hech narsa ishga tushirib sinalmagan — shuning uchun "🐞 gumon" belgili joylarni avval o'zing reproduce qil, keyin ishon.
+> Bu hujjat `emr-production.zip` ichidagi kodni **o'qib** yozildi (7.5K qator JS, 242 fayl). Kodga tegilmagan. Hech narsa ishga tushirib sinalmagan — shuning uchun "🐞 gumon" belgili joylarni avval o'zing reproduce qil, keyin ishon.
 
 ---
 

@@ -10,8 +10,9 @@
     // emas — shu bilan A5 xavfi (maydon qo'shishda birini unutish, B1 shundan
     // chiqqan edi) kamayadi.
     // Faza 2A-1: schema v2 — canvas {w,h,fps}|null, clip.fit/transform/opacity.
-    // DB ustunlari: migrations/002_add_canvas_schema.sql (qo'lda ishga tushirish SHART).
-    const PROJECT_SCHEMA_VERSION = 2;
+    // Faza 3/4/5: schema v3 — audioClips, ducking, subtitles, extras/markers (migrations 003–005).
+    // DB ustunlari: migrations/001–006 (qo'lda ishga tushirish SHART).
+    const PROJECT_SCHEMA_VERSION = 3;
 
     // Eski meta'ni joriy versiyaga ko'taradi. Default qiymatlar SHU YERDA beriladi
     // (save whitelist emas) — A5 xavfini kamaytiradi.
@@ -54,6 +55,29 @@
         }
         v = 2;
       }
+      if (v < 3) {
+        // v2 -> v3: audioClips + ducking (Faza 4), subtitles (Faza 5), extras/markers (Faza 3)
+        if (typeof EMRAudioLogic !== 'undefined' && typeof EMRAudioLogic.migrateMusicToAudioClips === 'function') {
+          EMRAudioLogic.migrateMusicToAudioClips(meta);
+        } else {
+          if (!Array.isArray(meta.audioClips)) meta.audioClips = [];
+          if (!meta.ducking || typeof meta.ducking !== 'object') {
+            meta.ducking = { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true };
+          }
+        }
+        if (!meta.subtitles || typeof meta.subtitles !== 'object') {
+          meta.subtitles = (typeof TextCore !== 'undefined' && TextCore.defaultSubtitles)
+            ? TextCore.defaultSubtitles()
+            : { cues: [], style: {} };
+        }
+        if (!meta.extras || typeof meta.extras !== 'object') meta.extras = {};
+        if (!Array.isArray(meta.markers)) {
+          meta.markers = Array.isArray(meta.extras.markers) ? meta.extras.markers : [];
+        }
+        if (meta.inPoint == null && meta.extras.inPoint != null) meta.inPoint = meta.extras.inPoint;
+        if (meta.outPoint == null && meta.extras.outPoint != null) meta.outPoint = meta.extras.outPoint;
+        v = 3;
+      }
       meta.schemaVersion = v;
       return meta;
     }
@@ -91,6 +115,13 @@
       state.videoClips = [];
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       state.textClips = [];
+      state.audioClips = [];
+      state.duckingSettings = { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true };
+      state.subtitles = null;
+      state.markers = [];
+      state.inPoint = null;
+      state.outPoint = null;
+      state.extras = {};
       state.canvasRatio = 'fit';
       state.canvas = null;
       if (typeof applyCanvas === 'function') applyCanvas();
@@ -266,6 +297,48 @@
         };
       }
 
+      // Faza 4: audioClips (music/sfx/voice) — fayllarni used ga qo'shamiz
+      const audioClipsMeta = (state.audioClips || []).map((ac) => {
+        const fid = ac.fileId || (ac.file ? fileIdOf(ac.file) : null);
+        if (fid && ac.file) used.set(fid, ac.file);
+        return {
+          id: ac.id,
+          kind: ac.kind || 'music',
+          fileId: fid,
+          name: ac.name || '',
+          track: ac.track != null ? ac.track : 0,
+          startTime: ac.startTime != null ? ac.startTime : 0,
+          trimStart: ac.trimStart != null ? ac.trimStart : 0,
+          trimEnd: ac.trimEnd != null ? ac.trimEnd : 0,
+          gain: ac.gain != null ? ac.gain : (ac.volume != null ? ac.volume : 1),
+          muted: !!ac.muted,
+          fadeIn: ac.fadeIn || 0,
+          fadeOut: ac.fadeOut || 0,
+          duck: ac.duck !== false,
+        };
+      });
+      const duckingMeta = state.duckingSettings && typeof state.duckingSettings === 'object'
+        ? {
+            enabled: !!state.duckingSettings.enabled,
+            amountDb: state.duckingSettings.amountDb != null ? state.duckingSettings.amountDb : -12,
+            attackMs: state.duckingSettings.attackMs != null ? state.duckingSettings.attackMs : 150,
+            releaseMs: state.duckingSettings.releaseMs != null ? state.duckingSettings.releaseMs : 400,
+            includeVideoAudio: state.duckingSettings.includeVideoAudio !== false,
+          }
+        : { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true };
+
+      // Faza 5: subtitles
+      const subtitlesMeta = (state.subtitles && typeof state.subtitles === 'object')
+        ? JSON.parse(JSON.stringify(state.subtitles))
+        : null;
+
+      // Faza 3: markers / in-out → extras
+      const extrasMeta = Object.assign({}, state.extras || {}, {
+        markers: Array.isArray(state.markers) ? state.markers : [],
+        inPoint: state.inPoint != null ? state.inPoint : null,
+        outPoint: state.outPoint != null ? state.outPoint : null,
+      });
+
       // Faqat yangi fayllar yoziladi; endi ishlatilmayotganlar (o'chirilgan clip) tozalanadi
       const newFiles = [];
       for (const [fid, f] of used) {
@@ -314,6 +387,13 @@
         clips,
         music,
         textClips,
+        audioClips: audioClipsMeta,
+        ducking: duckingMeta,
+        subtitles: subtitlesMeta,
+        extras: extrasMeta,
+        markers: extrasMeta.markers,
+        inPoint: extrasMeta.inPoint,
+        outPoint: extrasMeta.outPoint,
         canvas: canvasMeta,
         currentTime: state.currentTime,
         pps: state.pixelsPerSecond,
@@ -700,11 +780,14 @@
 
         // Fayllar: bitta manba = bitta File + bitta URL (split qilingan clip'lar ulashadi)
         const clipFileIds = new Set((meta?.clips || []).map(c => c.fileId));
+        const audioFileIds = new Set((meta?.audioClips || []).map(c => c.fileId).filter(Boolean));
+        if (meta?.music?.fileId) audioFileIds.add(meta.music.fileId);
         const sources = new Map();
         for (const r of recs) {
           const file = new File([r.blob], r.name, { type: r.type });
           rememberFileId(file, r.id);
-          sources.set(r.id, { file, url: clipFileIds.has(r.id) ? (typeof trackObjectUrl==="function"?trackObjectUrl(URL.createObjectURL(file)):URL.createObjectURL(file)) : null });
+          const needUrl = clipFileIds.has(r.id) || audioFileIds.has(r.id);
+          sources.set(r.id, { file, url: needUrl ? (typeof trackObjectUrl==="function"?trackObjectUrl(URL.createObjectURL(file)):URL.createObjectURL(file)) : null });
         }
         const clips = (meta?.clips || []).filter(c => sources.get(c.fileId)?.url).map((c) => {
           const s = sources.get(c.fileId);
@@ -754,6 +837,26 @@
         state.videoClips = clips;
         if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
         state.textClips = Array.isArray(meta.textClips) ? meta.textClips.map(tc => ({ ...tc })) : [];
+        // Faza 3/4/5 schema v3
+        state.audioClips = Array.isArray(meta.audioClips) ? meta.audioClips.map((ac) => {
+          const s = ac.fileId && sources.get(ac.fileId);
+          return Object.assign({}, ac, {
+            file: s ? s.file : null,
+            url: s && s.url ? s.url : (s ? (typeof trackObjectUrl === 'function' ? trackObjectUrl(URL.createObjectURL(s.file)) : URL.createObjectURL(s.file)) : null),
+          });
+        }) : [];
+        if (meta.ducking && typeof meta.ducking === 'object') {
+          state.duckingSettings = Object.assign({
+            enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true,
+          }, meta.ducking);
+        }
+        state.subtitles = (meta.subtitles && typeof meta.subtitles === 'object')
+          ? JSON.parse(JSON.stringify(meta.subtitles))
+          : null;
+        state.extras = (meta.extras && typeof meta.extras === 'object') ? Object.assign({}, meta.extras) : {};
+        state.markers = Array.isArray(meta.markers) ? meta.markers.slice() : (Array.isArray(state.extras.markers) ? state.extras.markers.slice() : []);
+        state.inPoint = meta.inPoint != null ? meta.inPoint : (state.extras.inPoint != null ? state.extras.inPoint : null);
+        state.outPoint = meta.outPoint != null ? meta.outPoint : (state.extras.outPoint != null ? state.extras.outPoint : null);
         // Faza 2A-1: canvas obyekt {w,h,fps} yoki null (asl nisbat).
         // Eski canvasRatio string UI uchun saqlanadi (2A-2 da to'liq o'tkaziladi).
         if (meta.canvas && typeof meta.canvas === 'object' && meta.canvas.w && meta.canvas.h) {

@@ -18,6 +18,14 @@
 
       music: null,
       textClips: [],             // [{ id, text, startTime, duration, offsetY, x, y, fontSize, color, bold, align, bgColor, bgOpacity }]
+      // Faza 4/5/3 integratsiya (schema v3): core state — parallel branch'lardan birlashtirilgan
+      audioClips: [],            // [{ id, kind, fileId, name, track, startTime, trimStart, trimEnd, gain, muted, fadeIn, fadeOut, duck }]
+      duckingSettings: { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true },
+      subtitles: null,           // { cues: [...], style: {...} } — TextCore.defaultSubtitles()
+      markers: [],               // [{ id, time, label, kind }]
+      inPoint: null,
+      outPoint: null,
+      extras: {},                // boshqa kengaytmalar (trackState va h.k.)
       clipboard: null,           // { type: 'clip'|'text', data: {...} } — faqat sessiya ichida
 
       isDragging: false,

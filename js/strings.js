@@ -48,7 +48,7 @@
     ESTIMATED_WORDS: "So'z vaqtlari taxminiy",
     FONT_FALLBACK: "Shrift yuklanmaguncha tizim shrifti ko'rinadi",
 
-    app_name: "EditorMR",
+    app_name: "EMR VideoEditor",
     app_description: "Brauzerda tez video montaj — kesish, transition, matn, musiqa, export. O'zbekcha.",
   };
 

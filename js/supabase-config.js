@@ -1,9 +1,15 @@
 // ===================== SUPABASE CONFIG =====================
-// Production: Vercel env orqali scripts/build-config.js yozadi.
-// Local: url va anonKey ni to'ldiring.
-// service_role HECH QACHON bu yerga qo'yilmasin.
+// 1) Supabase Dashboard → Project Settings → API
+//    - Project URL  → url
+//    - anon public  → anonKey  (service_role HECH QACHON)
+// 2) Authentication → Providers → Google: Enable
+//    Redirect URL: https://YOUR_DOMAIN/  va  http://localhost:3000/
+// 3) SQL Editor → SETUP-ALL.sql ni Run qiling
 //
-// Barcha Google hisoblari kira oladi. Har user faqat o'z loyihalarini ko'radi (RLS).
+// Production (Vercel): SUPABASE_URL + SUPABASE_ANON_KEY env
+//   → scripts/build-config.js avtomatik yozadi.
+// Local: quyidagi ikkita qiymatni to'ldiring.
+
 window.SUPABASE_CONFIG = {
   url: 'PASTE_SUPABASE_URL_HERE',
   anonKey: 'PASTE_SUPABASE_ANON_KEY_HERE',

@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const IDB_NAME = 'editormr-media';
+  const IDB_NAME = 'emr-media';
   const IDB_VER = 1;
   const IDB_STORE = 'blobs';
 

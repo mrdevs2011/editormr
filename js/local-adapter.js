@@ -4,7 +4,7 @@
 (function () {
   'use strict';
 
-  const DB_NAME = 'editormr-local';
+  const DB_NAME = 'emr-local';
   const DB_VER = 1;
   const STORE = 'projects';
 
@@ -94,11 +94,17 @@
       clips: meta.clips || [],
       music: meta.music || null,
       textClips: meta.textClips || [],
+      audioClips: Array.isArray(meta.audioClips) ? meta.audioClips : [],
+      ducking: meta.ducking && typeof meta.ducking === 'object' ? meta.ducking : null,
+      subtitles: meta.subtitles && typeof meta.subtitles === 'object' ? meta.subtitles : null,
       currentTime: meta.currentTime || 0,
       pps: meta.pps || 40,
       fileNames,
       extras: meta.extras && typeof meta.extras === 'object' ? meta.extras : {},
-      schemaVersion: meta.schemaVersion != null ? Number(meta.schemaVersion) : 2,
+      markers: Array.isArray(meta.markers) ? meta.markers : [],
+      inPoint: meta.inPoint != null ? meta.inPoint : null,
+      outPoint: meta.outPoint != null ? meta.outPoint : null,
+      schemaVersion: meta.schemaVersion != null ? Number(meta.schemaVersion) : 3,
       canvas: meta.canvas || null,
       storageMode: 'local',
     };

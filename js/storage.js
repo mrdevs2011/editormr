@@ -88,6 +88,16 @@
         music: row.music || null,
         // B1 tuzatish: matn overlay'lar endi alohida ustunda saqlanadi/o'qiladi (migrations/001_add_text_clips.sql)
         textClips: Array.isArray(row.text_clips) ? row.text_clips : [],
+        // Faza 4: audio_clips + ducking (migrations/004)
+        audioClips: Array.isArray(row.audio_clips) ? row.audio_clips : [],
+        ducking: (row.ducking && typeof row.ducking === 'object') ? row.ducking : null,
+        // Faza 5: subtitles (migrations/005)
+        subtitles: (row.subtitles && typeof row.subtitles === 'object') ? row.subtitles : null,
+        // Faza 3: extras (migrations/003)
+        extras: (row.extras && typeof row.extras === 'object') ? row.extras : {},
+        markers: (row.extras && Array.isArray(row.extras.markers)) ? row.extras.markers : [],
+        inPoint: (row.extras && row.extras.inPoint != null) ? row.extras.inPoint : null,
+        outPoint: (row.extras && row.extras.outPoint != null) ? row.extras.outPoint : null,
         currentTime: row.current_time_sec || 0,
         pps: row.pps,
         // Faza 2A-1: canvas ustuni (jsonb {w,h,fps} yoki null). Eski qatorlarda
@@ -207,6 +217,13 @@
         music: meta.music,
         // B1 tuzatish: matn overlay'larni ham DB'ga yozamiz (ilgari yo'qolib ketardi)
         text_clips: meta.textClips || [],
+        // Faza 4: audio_clips + ducking (migrations/004)
+        audio_clips: Array.isArray(meta.audioClips) ? meta.audioClips : [],
+        ducking: meta.ducking && typeof meta.ducking === 'object' ? meta.ducking : { enabled: false, amountDb: -12, attackMs: 150, releaseMs: 400, includeVideoAudio: true },
+        // Faza 5: subtitles (migrations/005)
+        subtitles: meta.subtitles && typeof meta.subtitles === 'object' ? meta.subtitles : null,
+        // Faza 3: extras (migrations/003)
+        extras: meta.extras && typeof meta.extras === 'object' ? meta.extras : {},
         current_time_sec: meta.currentTime,
         pps: meta.pps,
         file_names: fileNames,

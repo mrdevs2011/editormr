@@ -1,8 +1,6 @@
-# EditorMR — Production package
+# EMR Production — 100% integratsiya
 
-Birlashtirilgan: pase0 + phase1..9 (parallel branch union + Faza 9 sayqal).
-
-## Supabase migratsiyalar (tartib)
+## Migratsiyalar (tartib)
 
 1. migrations/001_add_text_clips.sql
 2. migrations/002_add_canvas_schema.sql
@@ -13,15 +11,28 @@ Birlashtirilgan: pase0 + phase1..9 (parallel branch union + Faza 9 sayqal).
 
 Har birini SQL Editor da Run qiling, keyin kodni oching.
 
+## Schema version
+
+- **v2**: canvas {w,h,fps}, clip fit/transform/opacity
+- **v3** (joriy): audioClips + ducking, subtitles, extras/markers — core `state` / `projects` / `storage` bilan to'liq sinxron
+
 ## Ishga tushirish
 
 ```bash
+# js/supabase-config.js da url + anonKey to'ldiring
 npx vercel dev
 # yoki static + COOP/COEP header bilan
 ```
 
-## Cheklovlar
+## Integratsiya holati (100%)
 
-- Fazalar parallel yozilgan — ba'zi feature modullar core save bilan to'liq sinxron emas.
-- Brauzerda to'liq regressiya shu paket uchun avtomatik o'tkazilmagan.
-- Batafsil: PRODUCTION-MERGE.md, work.md Progress log.
+- Core `state.js` / `projects.js` / `storage.js` — audioClips, ducking, subtitles, extras saqlanadi va yuklanadi
+- migrateProjectMeta v0→v3
+- Node testlar (sintaksis + logic + migrate) 0 FAIL
+- Parallel faza branch'lari core save yo'liga birlashtirilgan
+
+## Cheklovlar (brauzer)
+
+- Brauzerda to'liq regressiya shu paket uchun avtomatik o'tkazilmagan — qo'lda: silence, audio, captions, export, A/B renderer
+- Supabase config placeholder — production da env orqali to'ldiriladi
+- Batafsil: PRODUCTION-MERGE.md, work.md

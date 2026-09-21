@@ -901,7 +901,7 @@
       };
     }
 
-    // ---------- MRdrive (alohida Supabase client — editormr Auth'ga tegilmaydi) ----------
+    // ---------- MRdrive (alohida Supabase client — EMR Auth'ga tegilmaydi) ----------
     const MRDRIVE_DEFAULTS = {
       url: 'https://hharvpgnqmjbbgnfsauq.supabase.co',
       anonKey: 'sb_publishable_enRXsK8Yqzn_goNRUHBocg_DPvuWUDb',

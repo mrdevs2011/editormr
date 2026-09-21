@@ -24,18 +24,19 @@ Shu production paketi:
 
 **Avval hammasi Run, keyin deploy.** Ustun yo‘q = saqlash o‘lishi mumkin.
 
-## Integratsiya cheklovi (ochiq)
+## Integratsiya holati (schema v3 — 100% core)
 
-- Core `state.js` / `projects.js` **phase2** asosida (canvas v2).
-- phase4 `audioClips` va phase1 `subtitles` maydonlari **to‘liq core’ga birlashtirilmagan** — modullar yuklanadi, lekin migrate/save yo‘li har fazadagi kabi to‘liq sinxron emas.
+- Core `state.js` / `projects.js` / `storage.js` — **audioClips, ducking, subtitles, extras/markers** to‘liq save/load/migrate.
+- `PROJECT_SCHEMA_VERSION = 3`; migrateProjectMeta v0→v3 (music→audioClips, defaults).
 - phase1 WebCodecs exporter **beta**; asosiy export hali MediaRecorder + phase2 renderFrame.
 - phase3 playback o‘rniga phase2 playback qoldi (canvas hook).
-- **Brauzerda to‘liq regressiya sinalmagan.**
+- Node testlar 0 FAIL. **Brauzerda to‘liq regressiya** qo‘lda: silence, audio, captions, export, A/B renderer.
 
 ## Tavsiya
 
-1. SQL 001→005
-2. `npx vercel dev`
-3. `?renderer=canvas` va `?renderer=legacy`
-4. Har faza feature’ini alohida sinang (silence, audio, captions, export)
+1. SQL 001→006 (SETUP-SUPABASE.sql + migrations)
+2. `js/supabase-config.js` da url + anonKey
+3. `npx vercel dev`
+4. `?renderer=canvas` va `?renderer=legacy`
+5. Har faza feature’ini alohida sinang (silence, audio, captions, export)
 

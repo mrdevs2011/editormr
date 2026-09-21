@@ -1,12 +1,13 @@
 -- ============================================================
--- EMR — loyihalarni Supabase'ga saqlash uchun sozlash
--- Supabase Dashboard -> SQL Editor -> New query -> shu faylni
--- to'liq nusxalab, RUN bos. Qayta ishga tushirsang ham xavfsiz
--- (hammasi "if exists" / "or replace" bilan yozilgan, mavjud
--- jadval/fayllaringizga tegmaydi).
+-- EMR — Supabase sozlash
+--
+-- YANGI O'RNATISH: SETUP-ALL.sql ni ishlat (bitta fayl, hammasi ichida).
+-- Eski loyiha: migrations/001 → 006 ni tartib bilan Run qiling.
+--
+-- Bu fayl — faqat asosiy jadval + storage policy (eski moslik).
+-- To'liq schema v3 uchun SETUP-ALL.sql tavsiya etiladi.
 -- ============================================================
 
--- 1) Loyihalar jadvali (meta: nomi, clip'lar, musiqa, fayl nomlari)
 create table if not exists public.projects (
   id               text primary key,
   user_id          uuid not null references auth.users(id) on delete cascade,
@@ -25,8 +26,6 @@ create table if not exists public.projects (
 
 create index if not exists projects_user_id_idx on public.projects (user_id);
 
--- 2) RLS: istalgan Google hisobi bilan kirish mumkin, lekin har kim
---    faqat O'Z loyihalarini ko'radi/o'zgartiradi (auth.uid() = user_id).
 alter table public.projects enable row level security;
 
 drop policy if exists "select own projects" on public.projects;
@@ -45,11 +44,6 @@ create policy "update own projects" on public.projects
 drop policy if exists "delete own projects" on public.projects;
 create policy "delete own projects" on public.projects
   for delete using (auth.uid() = user_id);
-
--- 3) Storage bucket: media fayllar (video/rasm/audio) uchun
---    Buni SQL bilan yaratib bo'lmaydi — Dashboard'da qo'lda qil:
---      Storage -> New bucket -> Name: project-media -> Public: OFF (albatta yopiq)
---    Bucket allaqachon yaratilgan bo'lsa, shu policy'larni qayta RUN qilish yetadi.
 
 drop policy if exists "select own media" on storage.objects;
 create policy "select own media" on storage.objects
@@ -79,15 +73,4 @@ create policy "delete own media" on storage.objects
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
--- Eslatma: agar avval is_allowed_user() funksiyasini yaratgan bo'lsangiz,
--- endi hech qaysi policy uni chaqirmaydi — xohlasangiz shu buyruq bilan
--- butunlay o'chirib tashlashingiz ham mumkin (ixtiyoriy):
--- drop function if exists public.is_allowed_user();
-
-
--- ============================================================
--- 4) (Tavsiya) Email allowlist — Supabase Dashboard:
---    Authentication -> Hooks / yoki RLS qo'shimcha:
---    Client allowedEmails faqat UX; serverda ham cheklang.
---    Vercel: ALLOWED_EMAILS=you@gmail.com
--- ============================================================
+-- Keyingi qadam: SETUP-ALL.sql (yoki migrations/001–006)
