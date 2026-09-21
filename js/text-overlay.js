@@ -289,11 +289,24 @@
       const tc = getTextClipById(id);
       if (!tc) { bar.classList.remove('is-open'); return; }
       bar.dataset.textId = id;
-      bar.querySelector('.tfb-size').value = tc.fontSize || 32;
-      bar.querySelector('.tfb-color').value = tc.color || '#ffffff';
-      bar.querySelector('.tfb-bg').value = tc.bgColor || '#000000';
-      bar.querySelector('.tfb-bgop').value = Math.round((tc.bgOpacity != null ? tc.bgOpacity : 0.45) * 100);
-      bar.querySelector('.tfb-bold').classList.toggle('is-on', !!tc.bold);
+      const sizeEl = bar.querySelector('.tfb-size-val');
+      if (sizeEl) sizeEl.textContent = String(tc.fontSize || 32);
+      const colorInp = bar.querySelector('.tfb-color');
+      if (colorInp) colorInp.value = tc.color || '#ffffff';
+      bar.querySelector('.tfb-bold')?.classList.toggle('is-on', !!tc.bold);
+      bar.querySelectorAll('.tfb-align').forEach((btn) => {
+        btn.classList.toggle('is-on', (btn.dataset.a || 'center') === (tc.align || 'center'));
+      });
+      const hasBg = (tc.bgOpacity != null ? tc.bgOpacity : 0.45) > 0.05;
+      bar.querySelector('.tfb-bg-toggle')?.classList.toggle('is-on', hasBg);
+      // preset highlight
+      bar.querySelectorAll('.tfb-preset').forEach((btn) => {
+        const match =
+          (btn.dataset.color || '') === (tc.color || '#ffffff') &&
+          (btn.dataset.bg || '') === (tc.bgColor || '#000000') &&
+          Math.abs(Number(btn.dataset.op || 0) - (tc.bgOpacity != null ? tc.bgOpacity : 0.45)) < 0.06;
+        btn.classList.toggle('is-on', match);
+      });
       bar.classList.add('is-open');
     }
 
@@ -310,19 +323,39 @@
       bar.id = 'text-float-bar';
       bar.className = 'text-float-bar';
       bar.innerHTML =
-        '<button type="button" class="tfb-bold" title="Qalin">B</button>' +
-        '<label title="Rang"><input type="color" class="tfb-color" value="#ffffff"></label>' +
-        '<input type="number" class="tfb-size" min="12" max="120" value="32" title="O\'lcham">' +
-        '<span class="tfb-sep"></span>' +
-        '<label title="Fon rangi"><input type="color" class="tfb-bg" value="#000000"></label>' +
-        '<input type="range" class="tfb-bgop" min="0" max="100" value="45" title="Fon shaffofligi">' +
-        '<span class="tfb-sep"></span>' +
-        '<button type="button" class="tfb-align" data-a="left" title="Chap">L</button>' +
-        '<button type="button" class="tfb-align" data-a="center" title="Markaz">C</button>' +
-        '<button type="button" class="tfb-align" data-a="right" title="O\'ng">R</button>' +
-        '<span class="tfb-sep"></span>' +
-        '<button type="button" class="tfb-more" title="Ko\'proq">⋯</button>' +
-        '<button type="button" class="tfb-del" title="O\'chirish">Del</button>';
+        '<div class="tfb-group">' +
+          '<button type="button" class="tfb-bold" title="Qalin"><b>B</b></button>' +
+          '<label class="tfb-swatch" title="Rang"><input type="color" class="tfb-color" value="#ffffff"></label>' +
+        '</div>' +
+        '<div class="tfb-group tfb-size-group">' +
+          '<button type="button" class="tfb-size-dec" title="Kichikroq">−</button>' +
+          '<span class="tfb-size-val">32</span>' +
+          '<button type="button" class="tfb-size-inc" title="Kattaroq">+</button>' +
+        '</div>' +
+        '<div class="tfb-group">' +
+          '<button type="button" class="tfb-align" data-a="left" title="Chap">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h14"/></svg>' +
+          '</button>' +
+          '<button type="button" class="tfb-align" data-a="center" title="Markaz">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M5 18h14"/></svg>' +
+          '</button>' +
+          '<button type="button" class="tfb-align" data-a="right" title="O\'ng">' +
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M10 12h10M6 18h14"/></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="tfb-group tfb-presets">' +
+          '<button type="button" class="tfb-preset" data-color="#ffffff" data-bg="#000000" data-op="0.45" title="Oq + fon" style="--p:#fff;--pb:#000"></button>' +
+          '<button type="button" class="tfb-preset" data-color="#ffffff" data-bg="#000000" data-op="0" title="Oq" style="--p:#fff;--pb:transparent"></button>' +
+          '<button type="button" class="tfb-preset" data-color="#FFE566" data-bg="#000000" data-op="0" title="Sariq" style="--p:#FFE566;--pb:transparent"></button>' +
+          '<button type="button" class="tfb-preset" data-color="#111111" data-bg="#ffffff" data-op="0.9" title="Qora + oq fon" style="--p:#111;--pb:#fff"></button>' +
+        '</div>' +
+        '<div class="tfb-group">' +
+          '<button type="button" class="tfb-bg-toggle" title="Fon yoq/o\'chir">Fon</button>' +
+          '<button type="button" class="tfb-dur" title="Davomiylik">⏱</button>' +
+          '<button type="button" class="tfb-del" title="O\'chirish">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M9 7V4h6v3M6 7l1 12h10l1-12"/></svg>' +
+          '</button>' +
+        '</div>';
       (area || document.body).appendChild(bar);
 
       const apply = (mut) => {
@@ -337,9 +370,16 @@
         showTextFloatBar(id);
       };
 
+      const bumpSize = (delta) => {
+        apply((tc) => {
+          tc.fontSize = Math.max(12, Math.min(120, (tc.fontSize || 32) + delta));
+        });
+      };
+
       bar.querySelector('.tfb-bold').addEventListener('click', () => {
-        apply(tc => { tc.bold = !tc.bold; });
+        apply((tc) => { tc.bold = !tc.bold; });
       });
+
       let _colorHist = false;
       bar.querySelector('.tfb-color').addEventListener('input', (e) => {
         const id = bar.dataset.textId;
@@ -349,44 +389,47 @@
         tc.color = e.target.value;
         updateTextOverlays();
         scheduleSave();
+        showTextFloatBar(id);
       });
       bar.querySelector('.tfb-color').addEventListener('change', () => { _colorHist = false; });
-      bar.querySelector('.tfb-size').addEventListener('change', (e) => {
-        apply(tc => {
-          tc.fontSize = Math.max(12, Math.min(120, Number(e.target.value) || 32));
-        });
-      });
-      let _bgHist = false;
-      bar.querySelector('.tfb-bg').addEventListener('input', (e) => {
-        const id = bar.dataset.textId;
-        const tc = getTextClipById(id);
-        if (!tc) return;
-        if (!_bgHist) { pushHistory(); _bgHist = true; }
-        tc.bgColor = e.target.value;
-        updateTextOverlays();
-        scheduleSave();
-      });
-      bar.querySelector('.tfb-bg').addEventListener('change', () => { _bgHist = false; });
-      let _bgopHist = false;
-      bar.querySelector('.tfb-bgop').addEventListener('input', (e) => {
-        const id = bar.dataset.textId;
-        const tc = getTextClipById(id);
-        if (!tc) return;
-        if (!_bgopHist) { pushHistory(); _bgopHist = true; }
-        tc.bgOpacity = Math.max(0, Math.min(1, Number(e.target.value) / 100));
-        updateTextOverlays();
-        scheduleSave();
-      });
-      bar.querySelector('.tfb-bgop').addEventListener('change', () => { _bgopHist = false; });
-      bar.querySelectorAll('.tfb-align').forEach(btn => {
+
+      bar.querySelector('.tfb-size-dec').addEventListener('click', () => bumpSize(-4));
+      bar.querySelector('.tfb-size-inc').addEventListener('click', () => bumpSize(4));
+
+      bar.querySelectorAll('.tfb-align').forEach((btn) => {
         btn.addEventListener('click', () => {
-          apply(tc => { tc.align = btn.dataset.a || 'center'; });
+          apply((tc) => { tc.align = btn.dataset.a || 'center'; });
         });
       });
-      bar.querySelector('.tfb-more').addEventListener('click', () => {
+
+      bar.querySelectorAll('.tfb-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          apply((tc) => {
+            tc.color = btn.dataset.color || '#ffffff';
+            tc.bgColor = btn.dataset.bg || '#000000';
+            tc.bgOpacity = Number(btn.dataset.op != null ? btn.dataset.op : 0.45);
+          });
+        });
+      });
+
+      bar.querySelector('.tfb-bg-toggle').addEventListener('click', () => {
+        apply((tc) => {
+          const op = tc.bgOpacity != null ? tc.bgOpacity : 0.45;
+          if (op > 0.05) {
+            tc._prevBgOpacity = op;
+            tc.bgOpacity = 0;
+          } else {
+            tc.bgOpacity = tc._prevBgOpacity != null ? tc._prevBgOpacity : 0.45;
+            if (!tc.bgColor) tc.bgColor = '#000000';
+          }
+        });
+      });
+
+      bar.querySelector('.tfb-dur').addEventListener('click', () => {
         const id = bar.dataset.textId;
         if (id) openTextEditModal(id);
       });
+
       bar.querySelector('.tfb-del').addEventListener('click', () => {
         const id = bar.dataset.textId;
         if (!id) return;
@@ -395,7 +438,6 @@
         hideTextFloatBar();
       });
 
-      // Click outside overlay/bar ends edit (but not toolbar itself)
       document.addEventListener('pointerdown', (e) => {
         if (!state.textInlineEditId) return;
         const el = e.target.closest && e.target.closest('.text-overlay-item, .text-float-bar, .text-edit-modal-overlay');
@@ -482,8 +524,8 @@
       updateTextOverlays();
       const bar = document.getElementById('text-float-bar');
       if (bar && bar.classList.contains('is-open')) {
-        const inp = bar.querySelector('.tfb-size');
-        if (inp) inp.value = tc.fontSize;
+        const val = bar.querySelector('.tfb-size-val');
+        if (val) val.textContent = String(tc.fontSize);
       }
     }
 
@@ -692,35 +734,17 @@
       modal.addEventListener('click', (e) => e.stopPropagation());
 
       modal.innerHTML = `
-        <div class="tem-title">Edit Text</div>
-        <label class="tem-label">Text</label>
-        <textarea class="tem-textarea" id="tem-text" rows="3"></textarea>
-        <div class="tem-row">
-          <label>Size <input type="number" id="tem-size" min="12" max="120" step="1" /></label>
-          <label>Color <input type="color" id="tem-color" /></label>
-          <label class="tem-check"><input type="checkbox" id="tem-bold" /> Bold</label>
-        </div>
-        <div class="tem-row">
-          <label>Align
-            <select id="tem-align">
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
+        <div class="tem-title">Matn sozlamalari</div>
+        <label class="tem-label">Matn</label>
+        <textarea class="tem-textarea" id="tem-text" rows="3" placeholder="Matn yozing…"></textarea>
+        <div class="tem-row tem-row-single">
+          <label class="tem-field">Davomiylik (s)
+            <input type="number" id="tem-dur" min="0.2" max="600" step="0.1" />
           </label>
-          <label>Duration (s) <input type="number" id="tem-dur" min="0.2" max="600" step="0.1" /></label>
-        </div>
-        <div class="tem-row">
-          <label>BG <input type="color" id="tem-bg" /></label>
-          <label class="tem-slider">BG opacity <input type="range" id="tem-bgop" min="0" max="100" step="1" /> <span id="tem-bgop-val"></span></label>
-        </div>
-        <div class="tem-row">
-          <label>X (0–1) <input type="number" id="tem-x" min="0" max="1" step="0.01" /></label>
-          <label>Y (0–1) <input type="number" id="tem-y" min="0" max="1" step="0.01" /></label>
         </div>
         <div class="tem-actions">
-          <button type="button" class="tem-btn ghost" id="tem-cancel">Cancel</button>
-          <button type="button" class="tem-btn" id="tem-ok">OK</button>
+          <button type="button" class="tem-btn ghost" id="tem-cancel">Bekor</button>
+          <button type="button" class="tem-btn primary" id="tem-ok">Saqlash</button>
         </div>
       `;
 
@@ -729,35 +753,13 @@
       textModalEl = overlay;
 
       modal.querySelector('#tem-text').value = tc.text || '';
-      modal.querySelector('#tem-size').value = tc.fontSize || 32;
-      modal.querySelector('#tem-color').value = tc.color || '#ffffff';
-      modal.querySelector('#tem-bold').checked = !!tc.bold;
-      modal.querySelector('#tem-align').value = tc.align || 'center';
       modal.querySelector('#tem-dur').value = tc.duration || 3;
-      modal.querySelector('#tem-bg').value = tc.bgColor || '#000000';
-      const opPct = Math.round((tc.bgOpacity != null ? tc.bgOpacity : 0.45) * 100);
-      modal.querySelector('#tem-bgop').value = String(opPct);
-      modal.querySelector('#tem-bgop-val').textContent = opPct + '%';
-      modal.querySelector('#tem-x').value = tc.x != null ? tc.x : 0.5;
-      modal.querySelector('#tem-y').value = tc.y != null ? tc.y : 0.85;
-
-      modal.querySelector('#tem-bgop').addEventListener('input', (e) => {
-        modal.querySelector('#tem-bgop-val').textContent = e.target.value + '%';
-      });
 
       modal.querySelector('#tem-cancel').addEventListener('click', () => closeTextEditModal());
       modal.querySelector('#tem-ok').addEventListener('click', () => {
         pushHistory();
         tc.text = modal.querySelector('#tem-text').value;
-        tc.fontSize = Math.max(12, Math.min(120, Number(modal.querySelector('#tem-size').value) || 32));
-        tc.color = modal.querySelector('#tem-color').value || '#ffffff';
-        tc.bold = !!modal.querySelector('#tem-bold').checked;
-        tc.align = modal.querySelector('#tem-align').value || 'center';
         tc.duration = Math.max(0.2, Number(modal.querySelector('#tem-dur').value) || 3);
-        tc.bgColor = modal.querySelector('#tem-bg').value || '#000000';
-        tc.bgOpacity = Math.max(0, Math.min(1, Number(modal.querySelector('#tem-bgop').value) / 100));
-        tc.x = Math.max(0, Math.min(1, Number(modal.querySelector('#tem-x').value) || 0.5));
-        tc.y = Math.max(0, Math.min(1, Number(modal.querySelector('#tem-y').value) || 0.85));
         closeTextEditModal();
         renderTextLane();
         updateTimelineLayout();
