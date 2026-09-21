@@ -1,79 +1,15 @@
-/* CACHE_NAME qo'lda oshiriladi. Media/API/ffmpeg tegilmaydi. */
-var CACHE_NAME = 'emr-shell-v2';
+/* CACHE_NAME oshiriladi — yangi deploy ko'rinsin. Media/API/ffmpeg cache qilinmaydi. */
+var CACHE_NAME = 'emr-shell-v4';
 var PRECACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/css/base.css',
-  '/css/canvas.css',
-  '/css/legal.css',
   '/css/login.css',
-  '/css/media-blocks.css',
-  '/css/preview.css',
-  '/css/responsive.css',
-  '/css/tablet.css',
-  '/css/timeline-scrollbar.css',
-  '/css/timeline.css',
-  '/css/toolbar.css',
-  '/css/transition-toast.css',
   '/css/upload.css',
-  '/js/add-media.js',
-  '/js/analytics.js',
-  '/js/audio-engine.js',
-  '/js/audio-logic.js',
-  '/js/auth-choose.js',
   '/js/auth.js',
-  '/js/beat.js',
-  '/js/canvas.js',
-  '/js/captions-beta.js',
-  '/js/cloud-adapter.js',
-  '/js/context-menu.js',
-  '/js/dom.js',
-  '/js/drag.js',
-  '/js/export-core.js',
-  '/js/export.js',
-  '/js/fx-panel.js',
-  '/js/helpers.js',
-  '/js/history.js',
-  '/js/inspector.js',
-  '/js/local-adapter.js',
-  '/js/local-media.js',
-  '/js/local-to-cloud.js',
   '/js/login.js',
-  '/js/markers.js',
-  '/js/mobile-toolbar.js',
-  '/js/music-sync.js',
-  '/js/music.js',
-  '/js/onboarding.js',
-  '/js/playback.js',
-  '/js/projects.js',
-  '/js/pwa.js',
-  '/js/resize-handle.js',
-  '/js/selection.js',
-  '/js/silence-ui.js',
-  '/js/silence.js',
-  '/js/snap.js',
-  '/js/state.js',
-  '/js/storage-adapter.js',
-  '/js/storage.js',
-  '/js/strings.js',
-  '/js/subtitles.js',
   '/js/supabase-config.js',
-  '/js/text-core.js',
-  '/js/text-fonts.js',
-  '/js/text-overlay.js',
-  '/js/timeline.js',
-  '/js/track-controls.js',
-  '/js/transition-toast.js',
-  '/js/upload.js',
-  '/js/video-blocks.js',
-  '/js/voice-over.js',
-  '/js/zoom.js',
-  '/js/vendor/supabase.js',
-  '/assets/icon-192.png',
-  '/assets/icon-512.png',
-  '/assets/icon-192-maskable.png',
-  '/assets/icon-512-maskable.png',
   '/assets/logo.png',
   '/favicon.ico'
 ];
@@ -86,25 +22,51 @@ function shouldCacheUrl(url){
     if(/\.supabase\.co$/i.test(h)||h==='cdn.jsdelivr.net'||/huggingface\.co$/i.test(h)) return false;
     var e=extOf(u.pathname);
     if(e==='.mp4'||e==='.webm'||e==='.wasm') return false;
-    if(u.pathname==='/'||u.pathname==='/index.html') return true;
+    if(u.pathname==='/'||u.pathname==='/index.html'||u.pathname.indexOf('/login')===0) return true;
     return ['.html','.css','.js','.json','.woff2','.png','.ico','.svg','.webp'].indexOf(e)!==-1;
   }catch(_){return false;}
 }
+function isShell(url){
+  try{
+    var u=new URL(url);
+    var p=u.pathname;
+    var e=extOf(p);
+    return p==='/'||p==='/index.html'||p.indexOf('/login')===0||e==='.html'||e==='.js'||e==='.css';
+  }catch(_){return false;}
+}
 self.addEventListener('install',function(e){
+  self.skipWaiting();
   e.waitUntil(caches.open(CACHE_NAME).then(function(c){
     return Promise.all(PRECACHE.map(function(u){return c.add(u).catch(function(){});}));
   }));
 });
 self.addEventListener('activate',function(e){
-  e.waitUntil(caches.keys().then(function(keys){
-    return Promise.all(keys.filter(function(k){return k!==CACHE_NAME;}).map(function(k){return caches.delete(k);}));
-  }));
+  e.waitUntil(
+    caches.keys().then(function(keys){
+      return Promise.all(keys.filter(function(k){return k!==CACHE_NAME;}).map(function(k){return caches.delete(k);}));
+    }).then(function(){ return self.clients.claim(); })
+  );
 });
 self.addEventListener('message',function(e){ if(e.data&&e.data.type==='SKIP_WAITING') self.skipWaiting(); });
 self.addEventListener('fetch',function(e){
   var req=e.request;
   if(req.method!=='GET') return;
   if(!shouldCacheUrl(req.url)) return;
+  // HTML/JS/CSS — avval tarmoq (yangi deploy ko'rinsin), offline bo'lsa cache
+  if(isShell(req.url)){
+    e.respondWith(
+      fetch(req).then(function(res){
+        if(res&&res.ok){
+          var clone=res.clone();
+          caches.open(CACHE_NAME).then(function(c){ c.put(req,clone).catch(function(){}); });
+        }
+        return res;
+      }).catch(function(){
+        return caches.match(req).then(function(hit){ return hit || caches.match('/index.html'); });
+      })
+    );
+    return;
+  }
   e.respondWith(caches.open(CACHE_NAME).then(function(cache){
     return cache.match(req).then(function(hit){
       var net=fetch(req).then(function(res){ if(res&&res.ok) cache.put(req,res.clone()).catch(function(){}); return res; }).catch(function(){ return hit; });

@@ -19,9 +19,8 @@
     isFile;
 
   const configured =
-    /^https?:\/\/\S+$/.test(cfg.url || '') &&
-    (cfg.anonKey || '').length > 20 &&
-    !/PASTE_/i.test(cfg.url + cfg.anonKey);
+    /^https:\/\/\S+$/.test(cfg.url || '') &&
+    (cfg.anonKey || '').length > 20;
 
   const client =
     configured && window.supabase
@@ -31,7 +30,7 @@
       : null;
 
   function need() {
-    if (!client) throw new Error('Supabase keys are missing. Add them in js/supabase-config.js');
+    if (!client) throw new Error('Auth sozlanmagan (SUPABASE_URL / SUPABASE_ANON_KEY).');
     return client;
   }
 

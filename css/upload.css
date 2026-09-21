@@ -25,6 +25,10 @@
       margin-bottom: 28px;
       padding-bottom: 20px;
       border-bottom: 1px solid #1e2228;
+      flex-wrap: nowrap;
+    }
+    .dash-header .brand {
+      flex-shrink: 0;
     }
 
     .brand {
@@ -95,7 +99,9 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
+      flex-shrink: 1;
+      min-width: 0;
     }
 
     .upload-btn {
@@ -410,6 +416,8 @@
 
     @media (max-width: 640px) {
       .user-email { display: none; }
-      .user-chip { padding-left: 8px; }
+      .user-chip { padding-left: 8px; border-left: none; }
       .hint { display: none; }
+      .upload-box { flex-wrap: wrap; justify-content: flex-end; }
+      .dash-header { flex-wrap: wrap; }
     }

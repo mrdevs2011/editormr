@@ -4,9 +4,9 @@
   const googleBtn = $('google-btn');
   const msg = $('msg');
 
-  // ---- helpers ----
   function showMsg(text) {
-    msg.textContent = text;
+    if (!msg) return;
+    msg.textContent = text || '';
     msg.hidden = !text;
   }
   function setLoading(btn, on) {
@@ -18,6 +18,9 @@
     if (/rate limit|too many/i.test(t) || (err && err.status === 429)) return 'Juda ko‘p urinish. Bir daqiqa kuting.';
     if (/provider is not enabled|unsupported provider/i.test(t)) return 'Google orqali kirish hali yoqilmagan.';
     if (/failed to fetch|network/i.test(t)) return 'Tarmoq xatosi. Internetni tekshiring.';
+    if (/supabase|anon|config|PASTE_|keys are missing/i.test(t)) {
+      return 'Google orqali kirish hozir ishlamayapti. Accountsiz davom etishingiz mumkin.';
+    }
     return t;
   }
 
@@ -30,7 +33,6 @@
     location.href = Auth.APP_PAGE;
   }
 
-  // ---- Accountsiz davom etish (Privacy Policy ostida) ----
   (function setupGuestLink() {
     const a = $('guest-continue');
     if (a) {
@@ -39,16 +41,13 @@
         goGuest();
       });
     }
-    // Supabase sozlanmagan bo'lsa — qo'shimcha dev eslatma (ixtiyoriy)
     const note = $('dev-note');
-    if (note && !Auth.configured) {
-      note.innerHTML =
-        '<b>Supabase hali sozlanmagan.</b> Kalitlarni <code>js/supabase-config.js</code> ga qo‘ying.';
-      note.hidden = false;
+    if (note) {
+      note.hidden = true;
+      note.innerHTML = '';
     }
   })();
 
-  // OAuth xatosi bilan qaytgan bo'lsa ko'rsatamiz
   (function showReturnError() {
     const p = new URLSearchParams(location.hash.replace(/^#/, '') || location.search);
     const d = p.get('error_description');
@@ -58,7 +57,6 @@
     }
   })();
 
-  // Allaqachon kirgan bo'lsa — login sahifasini ko'rsatmay, to'g'ri app'ga
   const reveal = () => document.documentElement.classList.remove('auth-check');
   const goAppIfSignedIn = () =>
     Auth.getSession().then((s) => {
@@ -75,10 +73,13 @@
 
   window.addEventListener('pageshow', (e) => { if (e.persisted && Auth.configured) goAppIfSignedIn(); });
 
-  // ---- Google ----
   googleBtn.addEventListener('click', async () => {
     showMsg('');
-    if (!Auth.configured) return showMsg('Supabase kalitlari yo‘q. js/supabase-config.js ga qo‘ying.');
+    // Localhost / kalit yo'q — Google OAuth ishlamaydi, accountsiz ochamiz
+    if (!Auth.configured) {
+      goGuest();
+      return;
+    }
     setLoading(googleBtn, true);
     try {
       await Auth.signInWithGoogle();

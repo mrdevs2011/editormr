@@ -95,21 +95,11 @@
   }
 
   function enhanceEmptyDashboard() {
-    var dash = document.getElementById('dashboard-screen') || document.getElementById('upload-screen');
-    if (!dash) return;
-    // Bo'sh holat chaqiruvi — upload screen ichida
+    // Dashboard bo'sh holati allaqachon #dash-empty orqali ko'rsatiladi.
+    // #upload-screen flex konteyner — ichiga sibling qo'shish layoutni buzardi.
+    // Eski inject qilingan hint bo'lsa olib tashlaymiz.
     var existing = document.getElementById('ob-empty-hint');
-    if (existing) return;
-    var hint = document.createElement('div');
-    hint.id = 'ob-empty-hint';
-    hint.className = 'ob-empty-hint';
-    hint.innerHTML =
-      '<strong>' + t('dashboard_empty_title') + '</strong>' +
-      '<span>' + t('dashboard_empty_body') + '</span>';
-    var target = dash.querySelector('.upload-zone, .upload-area, .drop-zone, #upload-screen .inner, #dashboard-screen') || dash;
-    try { target.insertBefore(hint, target.firstChild); } catch (_) {
-      try { target.appendChild(hint); } catch (_) {}
-    }
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
   }
 
   global.EMR_onboarding = {

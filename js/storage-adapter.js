@@ -9,7 +9,15 @@
   };
 
   /** @type {'local'|'cloud'} */
-  let currentMode = 'cloud';
+  // Guest / account yo'q → local; aks holda cloud
+  let currentMode = (function () {
+    try {
+      if (window.Auth && typeof Auth.isGuest === 'function' && Auth.isGuest()) return 'local';
+      if (window.Auth && Auth.session) return 'cloud';
+      if (localStorage.getItem('emr-guest') === '1') return 'local';
+    } catch (_) {}
+    return 'cloud';
+  })();
 
   function setAdapter(mode, impl) {
     if (mode !== 'local' && mode !== 'cloud') throw new Error('Noto\'g\'ri storageMode: ' + mode);
