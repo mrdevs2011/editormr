@@ -9,7 +9,8 @@
       isImage: false,
       filmstrip: null,
 
-      canvasRatio: 'fit',        // canvas nisbati: '9:16' | '1:1' | '16:9' | '4:5' | '3:4' | '2:3' | '2.35:1' | 'fit' (js/canvas.js)
+      canvasRatio: 'fit',        // UI preset id: '9:16' | '1:1' | ... | 'fit' (js/canvas.js)
+      canvas: null,              // Faza 2A-1: {w,h,fps} yoki null (= asl nisbat, birinchi asosiy clip)
 
       isPlaying: false,
       currentTime: 0,
@@ -58,12 +59,18 @@
     // Endi bitta joy — maydonlar to'planib qolsa ham (masalan yangi effekt
     // maydoni) faqat shu yerda qo'shiladi.
     function createClip(overrides) {
+      // Faza 2A-1: fit/transform/opacity — default yangi clip uchun.
+      // Eski loyihalar migrateProjectMeta orqali 'contain' oladi (preview o'zgarmasin).
+      // Yangi loyihalarda UI default fit: cover (2A-2); gorizontal→vertikal: blur.
       return Object.assign({
         id: makeClipId(),
         startTime: 0, trimStart: 0, trimEnd: 5, offsetY: 0, track: 0,
         url: null, file: null, duration: 5, isImage: false, filmstrip: null, name: '',
         volume: 1, muted: false, speed: 1, fadeIn: 0, fadeOut: 0,
         transitionType: 'none', transitionDuration: 0.3,
+        fit: 'cover',
+        transform: { x: 0, y: 0, scale: 1, rotation: 0 },
+        opacity: 1,
       }, overrides || {});
     }
 

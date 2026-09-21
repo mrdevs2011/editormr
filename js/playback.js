@@ -165,6 +165,9 @@
       applyMusicVolume();
       startMusicIfNeeded();
       rafId = requestAnimationFrame(tick);
+      if (window.EMR && window.EMR._previewCanvas) {
+        try { window.EMR._previewCanvas.onPlay(); } catch (_) {}
+      }
     }
 
     function pauseAll() {
@@ -182,6 +185,9 @@
       if (state.music?.audio) state.music.audio.pause();
       videoWasInRange = false;
       musicWasInRange = false;
+      if (window.EMR && window.EMR._previewCanvas) {
+        try { window.EMR._previewCanvas.onPause(); } catch (_) {}
+      }
       activePlayClipId = null;
     }
 

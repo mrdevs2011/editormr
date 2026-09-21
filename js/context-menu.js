@@ -142,6 +142,65 @@
       });
       menu.appendChild(floatBtn);
 
+      // Faza 2A-3: fit rejimi
+      const fitRow = document.createElement('div');
+      fitRow.className = 'ctx-speed-row';
+      fitRow.addEventListener('click', (e) => e.stopPropagation());
+      ['contain', 'cover', 'blur'].forEach((mode) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = mode === 'contain' ? "Sig'dir" : mode === 'cover' ? "To'ldir" : 'Blur';
+        b.title = mode;
+        if ((clip.fit || 'contain') === mode) b.classList.add('is-active');
+        b.addEventListener('click', () => {
+          if (typeof pushHistory === 'function') pushHistory();
+          clip.fit = mode;
+          hideClipContextMenu();
+          if (typeof scheduleSave === 'function') scheduleSave();
+          if (window.EMR && window.EMR.requestPreviewRedraw) window.EMR.requestPreviewRedraw(true);
+          showToast('Fit: ' + mode);
+        });
+        fitRow.appendChild(b);
+      });
+      menu.appendChild(fitRow);
+
+      // Faza 2C-2: rasm uchun Ken Burns
+      if (clip.isImage) {
+        const kbBtn = document.createElement('button');
+        kbBtn.textContent = clip.kenBurns ? "Ken Burns o'chirish" : 'Ken Burns';
+        kbBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (typeof pushHistory === 'function') pushHistory();
+          if (clip.kenBurns) {
+            clip.kenBurns = undefined;
+          } else {
+            clip.kenBurns = {
+              from: { x: 0, y: 0, scale: 1.0, rotation: 0 },
+              to: { x: 0, y: 0, scale: 1.15, rotation: 0 },
+            };
+          }
+          hideClipContextMenu();
+          if (typeof scheduleSave === 'function') scheduleSave();
+          if (window.EMR && window.EMR.requestPreviewRedraw) window.EMR.requestPreviewRedraw(true);
+        });
+        menu.appendChild(kbBtn);
+      }
+
+      // Float audio (2C-1)
+      if (clip.floated && !clip.isImage) {
+        const audBtn = document.createElement('button');
+        audBtn.textContent = clip.floatAudio ? "Float ovozini o'chirish" : "Ovozini ham qo'sh";
+        audBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (typeof pushHistory === 'function') pushHistory();
+          clip.floatAudio = !clip.floatAudio;
+          hideClipContextMenu();
+          if (typeof scheduleSave === 'function') scheduleSave();
+          showToast(clip.floatAudio ? 'Float ovozi yoqildi' : "Float ovozi o'chirildi");
+        });
+        menu.appendChild(audBtn);
+      }
+
       if (clip.isImage) {
         appendImageDurationItems(menu, clip);
       } else {
@@ -436,7 +495,8 @@
         if (clip.transitionDuration > maxT) clip.transitionDuration = maxT;
       }
 
-      // O'ng qism: yangi clip (volume/muted/speed meros)
+      // O'ng qism: yangi clip (volume/muted/speed + Faza 2 maydonlar meros)
+      const tr = clip.transform ? { ...clip.transform } : { x: 0, y: 0, scale: 1, rotation: 0 };
       const newClip = {
         id: makeClipId(),
         startTime: rightStartTime,
@@ -458,6 +518,14 @@
         transitionType: 'none',
         transitionDuration: 0.3,
         floated: !!clip.floated,
+        fit: clip.fit || 'contain',
+        transform: tr,
+        opacity: clip.opacity != null ? clip.opacity : 1,
+        kenBurns: clip.kenBurns ? {
+          from: clip.kenBurns.from ? { ...clip.kenBurns.from } : undefined,
+          to: clip.kenBurns.to ? { ...clip.kenBurns.to } : undefined,
+        } : undefined,
+        floatAudio: !!clip.floatAudio,
       };
       // Eski clip dan keyin qo'yish
       const idx = state.videoClips.findIndex(c => c.id === clipId);

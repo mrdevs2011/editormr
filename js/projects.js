@@ -9,17 +9,50 @@
     // SHU YERDA (migrate'da) beriladi, saveProjectNow'dagi qo'lda whitelist'da
     // emas — shu bilan A5 xavfi (maydon qo'shishda birini unutish, B1 shundan
     // chiqqan edi) kamayadi.
-    const PROJECT_SCHEMA_VERSION = 1;
+    // Faza 2A-1: schema v2 — canvas {w,h,fps}|null, clip.fit/transform/opacity.
+    // DB ustunlari: migrations/002_add_canvas_schema.sql (qo'lda ishga tushirish SHART).
+    const PROJECT_SCHEMA_VERSION = 2;
 
-    // Eski (kichikroq schemaVersion yoki umuman yo'q — eski loyihalar) meta'ni
-    // joriy versiyaga ko'taradi. Hozircha (v1) hech qanday maydon migratsiyasi
-    // kerak emas — bu birinchi versiya, funksiya keyingi versiyalar uchun joy.
+    // Eski meta'ni joriy versiyaga ko'taradi. Default qiymatlar SHU YERDA beriladi
+    // (save whitelist emas) — A5 xavfini kamaytiradi.
     function migrateProjectMeta(meta) {
       if (!meta) return meta;
       let v = meta.schemaVersion || 0;
       if (v < 1) {
         // v0 -> v1: struktura o'zgarmadi, faqat versiya belgilanadi.
         v = 1;
+      }
+      if (v < 2) {
+        // v1 -> v2:
+        // - canvas: eski string ratio ('9:16'|'fit'|...) yoki null → yangi {w,h,fps}|null.
+        //   Eski string ratio'ni saqlab qolmaymiz: null = "asl nisbat" (hozirgi
+        //   preview xatti-harakati o'zgarmasin). Aniq preset keyin UI orqali tanlanadi.
+        // - har clip: fit='contain' (hozirgi canvasDrawContain xatti-harakati),
+        //   transform markazda/aylantirilmagan, opacity=1.
+        if (typeof meta.canvas === 'string') {
+          // Eski file_names.__canvas string — v2 da null (asl nisbat)
+          meta.canvas = null;
+        } else if (meta.canvas && typeof meta.canvas === 'object') {
+          // allaqachon obyekt — qoldiramiz
+        } else {
+          meta.canvas = null;
+        }
+        const clips = Array.isArray(meta.clips) ? meta.clips : [];
+        for (let i = 0; i < clips.length; i++) {
+          const c = clips[i];
+          if (!c || typeof c !== 'object') continue;
+          if (c.fit == null) c.fit = 'contain';
+          if (!c.transform || typeof c.transform !== 'object') {
+            c.transform = { x: 0, y: 0, scale: 1, rotation: 0 };
+          } else {
+            if (c.transform.x == null) c.transform.x = 0;
+            if (c.transform.y == null) c.transform.y = 0;
+            if (c.transform.scale == null) c.transform.scale = 1;
+            if (c.transform.rotation == null) c.transform.rotation = 0;
+          }
+          if (c.opacity == null) c.opacity = 1;
+        }
+        v = 2;
       }
       meta.schemaVersion = v;
       return meta;
@@ -59,6 +92,7 @@
       if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
       state.textClips = [];
       state.canvasRatio = 'fit';
+      state.canvas = null;
       if (typeof applyCanvas === 'function') applyCanvas();
       state.clipboard = null;
       state.selectedClipId = null;
@@ -94,6 +128,7 @@
     function beginProject(file, isImage) {
       const pid = makeProjectId();
       state.projectId = pid;
+      try { if (typeof track === 'function' && !state._trackedCreate) { state._trackedCreate = true; track('project_created'); } } catch (_) {}
       state.projectName = baseName(file.name);
       state.projectCreatedAt = Date.now();
       state.projectThumb = null;
@@ -189,6 +224,7 @@
       const clips = state.videoClips.map((c) => {
         const fid = fileIdOf(c.file);
         used.set(fid, c.file);
+        const tr = c.transform && typeof c.transform === 'object' ? c.transform : { x: 0, y: 0, scale: 1, rotation: 0 };
         return {
           id: c.id, fileId: fid, name: c.name,
           startTime: c.startTime, trimStart: c.trimStart, trimEnd: c.trimEnd,
@@ -201,6 +237,17 @@
           transitionType: c.transitionType || 'none',
           transitionDuration: c.transitionDuration != null ? c.transitionDuration : 0.3,
           floated: !!c.floated,
+          // Faza 2A-1 / 2C: fit, transform, opacity, ixtiyoriy kenBurns
+          fit: c.fit || 'contain',
+          transform: {
+            x: tr.x != null ? tr.x : 0,
+            y: tr.y != null ? tr.y : 0,
+            scale: tr.scale != null ? tr.scale : 1,
+            rotation: tr.rotation != null ? tr.rotation : 0,
+          },
+          opacity: c.opacity != null ? c.opacity : 1,
+          kenBurns: c.kenBurns && typeof c.kenBurns === 'object' ? c.kenBurns : undefined,
+          floatAudio: !!c.floatAudio,
         };
       });
       let music = null;
@@ -242,6 +289,19 @@
         bgOpacity: tc.bgOpacity != null ? tc.bgOpacity : 0.45,
       }));
 
+      // Faza 2A-1: canvas obyekt yoki null. state.canvas (yangi) ustunlik;
+      // eski state.canvasRatio faqat fallback (migrate/UI o'tish davri).
+      let canvasMeta = null;
+      if (state.canvas && typeof state.canvas === 'object' && state.canvas.w && state.canvas.h) {
+        canvasMeta = {
+          w: Math.round(state.canvas.w),
+          h: Math.round(state.canvas.h),
+          fps: state.canvas.fps > 0 ? state.canvas.fps : 30,
+        };
+      } else {
+        canvasMeta = null; // asl nisbat
+      }
+
       const meta = {
         id: pid,
         schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -254,7 +314,7 @@
         clips,
         music,
         textClips,
-        canvas: state.canvasRatio || 'fit',
+        canvas: canvasMeta,
         currentTime: state.currentTime,
         pps: state.pixelsPerSecond,
       };
@@ -648,6 +708,7 @@
         }
         const clips = (meta?.clips || []).filter(c => sources.get(c.fileId)?.url).map((c) => {
           const s = sources.get(c.fileId);
+          const tr = c.transform && typeof c.transform === 'object' ? c.transform : { x: 0, y: 0, scale: 1, rotation: 0 };
           return {
             id: c.id, name: c.name, startTime: c.startTime, trimStart: c.trimStart, trimEnd: c.trimEnd,
             offsetY: c.offsetY || 0, track: c.track != null ? c.track : 0, duration: c.duration, isImage: !!c.isImage,
@@ -660,6 +721,16 @@
             transitionType: c.transitionType || 'none',
             transitionDuration: c.transitionDuration != null ? c.transitionDuration : 0.3,
             floated: !!c.floated,
+            fit: c.fit || 'contain',
+            transform: {
+              x: tr.x != null ? tr.x : 0,
+              y: tr.y != null ? tr.y : 0,
+              scale: tr.scale != null ? tr.scale : 1,
+              rotation: tr.rotation != null ? tr.rotation : 0,
+            },
+            opacity: c.opacity != null ? c.opacity : 1,
+            kenBurns: c.kenBurns && typeof c.kenBurns === 'object' ? c.kenBurns : undefined,
+            floatAudio: !!c.floatAudio,
           };
         });
         if (!meta || !clips.length) {
@@ -683,7 +754,22 @@
         state.videoClips = clips;
         if (typeof invalidateClipOrder === 'function') invalidateClipOrder();
         state.textClips = Array.isArray(meta.textClips) ? meta.textClips.map(tc => ({ ...tc })) : [];
-        state.canvasRatio = (typeof canvasValidId === 'function') ? canvasValidId(meta.canvas) : 'fit';
+        // Faza 2A-1: canvas obyekt {w,h,fps} yoki null (asl nisbat).
+        // Eski canvasRatio string UI uchun saqlanadi (2A-2 da to'liq o'tkaziladi).
+        if (meta.canvas && typeof meta.canvas === 'object' && meta.canvas.w && meta.canvas.h) {
+          state.canvas = { w: meta.canvas.w, h: meta.canvas.h, fps: meta.canvas.fps > 0 ? meta.canvas.fps : 30 };
+          // UI preset id ni taxminiy moslashtirish
+          const r = meta.canvas.w / meta.canvas.h;
+          const near = (a, b) => Math.abs(a - b) < 0.02;
+          if (near(r, 9 / 16)) state.canvasRatio = '9:16';
+          else if (near(r, 1)) state.canvasRatio = '1:1';
+          else if (near(r, 16 / 9)) state.canvasRatio = '16:9';
+          else if (near(r, 4 / 5)) state.canvasRatio = '4:5';
+          else state.canvasRatio = 'fit';
+        } else {
+          state.canvas = null;
+          state.canvasRatio = 'fit';
+        }
         // Eski saqlangan overlap'larni tuzatish
         if (typeof normalizeVideoOverlaps === 'function') normalizeVideoOverlaps();
         if (typeof invalidateClipOrder === 'function') invalidateClipOrder();

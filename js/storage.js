@@ -33,7 +33,10 @@
     const LOCK_KEY_SESSION = '__lockSession';
     const LOCK_KEY_UNTIL = '__lockUntil';
     const LOCK_TTL_MS = 120000;
-    const CANVAS_KEY = '__canvas';   // canvas nisbati (file_names jsonb ichida, alohida ustun/migratsiya kerak emas)
+    // Eski fallback: canvas nisbati file_names ichida saqlanardi (Faza 0).
+    // 002 migratsiyadan keyin alohida `canvas` jsonb ustuni ishlatiladi;
+    // eski kalit faqat eski qatorlarni o'qish uchun qoladi.
+    const CANVAS_KEY = '__canvas';
 
     function editorSessionId() {
       try {
@@ -87,7 +90,12 @@
         textClips: Array.isArray(row.text_clips) ? row.text_clips : [],
         currentTime: row.current_time_sec || 0,
         pps: row.pps,
-        canvas: fn[CANVAS_KEY] || null,
+        // Faza 2A-1: canvas ustuni (jsonb {w,h,fps} yoki null). Eski qatorlarda
+        // faqat file_names.__canvas (string ratio) bo'lishi mumkin — uni ham o'qiymiz.
+        canvas: (row.canvas !== undefined && row.canvas !== null)
+          ? row.canvas
+          : (fn[CANVAS_KEY] || null),
+        schemaVersion: (row.schema_version != null) ? Number(row.schema_version) : undefined,
         locked: !!(lock.session && lock.until > now && lock.session !== editorSessionId()),
         lockUntil: lock.until,
       };
@@ -177,7 +185,10 @@
       for (const id of removedFileIds) {
         if (!isReservedFileKey(id)) delete fileNames[id];
       }
-      if (meta.canvas) fileNames[CANVAS_KEY] = meta.canvas;
+      // Eski __canvas kalitini tozalaymiz — endi alohida ustun
+      if (Object.prototype.hasOwnProperty.call(fileNames, CANVAS_KEY)) {
+        delete fileNames[CANVAS_KEY];
+      }
       // Ochiq sessiya lockini saqlab qolamiz
       if (fileNames[LOCK_KEY_SESSION] === editorSessionId()) {
         fileNames[LOCK_KEY_UNTIL] = Date.now() + LOCK_TTL_MS;
@@ -199,6 +210,10 @@
         current_time_sec: meta.currentTime,
         pps: meta.pps,
         file_names: fileNames,
+        // Faza 2A-1: canvas + schema_version (migrations/002). Ustunlar yo'q bo'lsa
+        // saqlash xato beradi — avval SQL'ni Supabase'da ishga tushirish SHART.
+        canvas: meta.canvas != null ? meta.canvas : null,
+        schema_version: meta.schemaVersion != null ? meta.schemaVersion : 1,
       };
 
       if (!existing) {

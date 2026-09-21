@@ -138,6 +138,10 @@
       if (typeof resetPlaybackClipCache === 'function') resetPlaybackClipCache(c.id);
       if (typeof updatePreviewTransition === 'function') updatePreviewTransition(t);
       if (typeof updatePreviewFloat === 'function') updatePreviewFloat(t);
+    
+      if (window.EMR && window.EMR.requestPreviewRedraw) {
+        try { window.EMR.requestPreviewRedraw(true); } catch (_) {}
+      }
     }
 
 

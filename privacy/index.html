@@ -60,5 +60,16 @@
 
     <p class="foot"><a href="../terms/">Terms of Service</a> &middot; <a href="../login/">Sign in</a></p>
   </div>
+
+    <h2>Anonymous usage and error logs</h2>
+    <p>To improve reliability we may store <b>anonymous</b> events and client error reports in our database:</p>
+    <ul>
+      <li><b>What is stored:</b> event names such as <code>project_created</code>, <code>export_started</code>, <code>export_completed</code>, <code>export_failed</code>, <code>onboarding_completed</code>, <code>pwa_installed</code> (if available); approximate time; optional non-identifying metadata (e.g. clip count, quality label).</li>
+      <li><b>What is <u>not</u> stored:</b> your email, IP address, file names, video content, project titles, or any cookie that tracks you across sessions for advertising.</li>
+      <li><b>Errors:</b> browser error message and a shortened stack trace (paths stripped), page URL path — so we can fix crashes. Duplicate messages in the same tab are rate-limited.</li>
+      <li><b>Deletion:</b> because these records are not tied to your account identity, there is nothing personal to “delete” for a specific user. Data is used only for aggregate reliability.</li>
+    </ul>
+    <p>No third-party analytics scripts (Google Analytics, Sentry, etc.) are loaded. Data stays in our Supabase project with insert-only access from the app.</p>
+
 </body>
 </html>

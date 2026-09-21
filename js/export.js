@@ -1,171 +1,66 @@
     // ===================== EXPORT (real timeline render) =====================
 
-    // B7 yamog'i + Faza 1: beforeunload va Wake Lock saqlanadi.
-    // Bekor qilish / xato / tugash — hammasi finally da lockni bo'shatadi.
+    // B7 yamog'i: export real-time (rAF/captureStream) ketyapti, tab yopilsa
+    // yoki yangilansa natija yo'qoladi, fonga o'tsa esa kadr tushib qolishi
+    // mumkin. Ikkalasiga ham to'liq yechim emas (haqiqiy fix — Faza 1,
+    // offline/WebCodecs render), lekin eng arzon himoya: ogohlantirish +
+    // ekranni o'chirmaslik.
     function exportBeforeUnloadGuard(e) {
       e.preventDefault();
       e.returnValue = '';
       return '';
     }
     let _exportWakeLock = null;
-    let _exportSession = null;
 
-    function newExportSession() {
-      return { aborted: false, pathUsed: null, resources: [] };
-    }
-
-    function currentForcedExportPath() {
-      try {
-        return ExportCore.parseForcedPath(window.location.search || '');
-      } catch (_) {
-        return null;
-      }
-    }
-
-    function logExportPath(path, extra) {
-      console.info('[export] yo\'l:', path, extra || '', 'forced=', currentForcedExportPath());
-    }
-
-    async function acquireExportGuards() {
-      window.addEventListener('beforeunload', exportBeforeUnloadGuard);
-      if (navigator.wakeLock && typeof navigator.wakeLock.request === 'function') {
-        try {
-          _exportWakeLock = await navigator.wakeLock.request('screen');
-        } catch (_) {
-          _exportWakeLock = null;
-        }
-      }
-    }
-
-    async function releaseExportGuards() {
-      window.removeEventListener('beforeunload', exportBeforeUnloadGuard);
-      if (_exportWakeLock) {
-        try { await _exportWakeLock.release(); } catch (_) {}
-        _exportWakeLock = null;
-      }
-    }
-
-    function readExportSettingsFromUi() {
-      const overlay = document.getElementById('export-ui-modal');
-      const q = overlay && overlay.querySelector('input[name="emr-exp-q"]:checked');
-      const b = overlay && overlay.querySelector('input[name="emr-exp-b"]:checked');
-      const fps60 = overlay && overlay.querySelector('#emr-exp-fps60');
-      return ExportCore.saveSettings({
-        quality: q ? q.value : undefined,
-        bitrate: b ? b.value : undefined,
-        fps: fps60 && fps60.checked ? 60 : 30
-      });
-    }
-
-    exportBtn.addEventListener('click', () => {
+    exportBtn.addEventListener('click', async () => {
       if (!state.videoClips || !state.videoClips.length) {
         showToast('Export qilish uchun video/rasm qo\'shing');
         return;
       }
       if (state.isExporting) return;
-      showExportSetupModal();
-    });
-
-    window.addEventListener('pagehide', () => {
-      if (state.isExporting && _exportSession) _exportSession.aborted = true;
-    });
-    document.addEventListener('visibilitychange', () => {
-      // Fondagi tab live yo'lda kadr tashlashi mumkin — resursni yopmaymiz,
-      // faqat bekor flag qo'yilgan bo'lsa tozalash tick/fast loopda bo'ladi.
-      if (document.visibilityState === 'hidden' && state.isExporting) {
-        console.info('[export] tab fon rejimida, sessiya davom etadi');
-      }
-    });
-
-    async function beginExport(wantFast) {
-      if (state.isExporting) return;
-      const settings = readExportSettingsFromUi();
       state.isExporting = true;
-      _exportSession = newExportSession();
-      showExportProgressModal(0, { running: true });
+      showExportProgressModal(0);
+      try { if (typeof track === 'function') track('export_started', { clip_count: (state.videoClips||[]).length, has_music: !!state.music, has_text: !!(state.textClips&&state.textClips.length) }); } catch (_) {}
 
-      await acquireExportGuards();
+      window.addEventListener('beforeunload', exportBeforeUnloadGuard);
+      if (navigator.wakeLock && typeof navigator.wakeLock.request === 'function') {
+        try {
+          _exportWakeLock = await navigator.wakeLock.request('screen');
+        } catch (_) {
+          _exportWakeLock = null; // qo'llab-quvvatlanmasa yoki ruxsat berilmasa — jim davom et
+        }
+      }
+
       try {
-        const forced = currentForcedExportPath();
-        const start = ExportCore.defaultStartPath(forced, wantFast);
-        const chain = ExportCore.fallbackChain(start);
-        let lastErr = null;
-        let result = null;
-        for (let i = 0; i < chain.length; i++) {
-          const path = chain[i];
-          if (_exportSession.aborted) throw ExportCore.ExportAbortedError();
-          try {
-            logExportPath(path, i ? '(fallback)' : '(start)');
-            if (path === 'fast') {
-              result = await FastExporter.run({
-                settings: settings,
-                abort: _exportSession,
-                useDecoder: /(?:\?|&)export=fast-decoder\b/.test(window.location.search || ''),
-                onProgress: (p) => {
-                  const eta = ExportCore.estimateRemainingSec(p.ratio, p.elapsedMs);
-                  updateExportProgress(Math.round(p.ratio * 100), eta);
-                }
-              });
-            } else {
-              result = await exportTimeline({
-                preferMp4: path === 'mp4',
-                settings: settings,
-                abort: _exportSession
-              });
-            }
-            _exportSession.pathUsed = result.path || path;
-            lastErr = null;
-            break;
-          } catch (err) {
-            if (ExportCore.isAbortError(err)) throw err;
-            lastErr = err;
-            console.warn('[export] yo\'l yiqildi:', path, err);
-            showToast(path + ' xato: ' + (err && err.message ? err.message : 'noma\'lum') + (i < chain.length - 1 ? ' — keyingi yo\'l' : ''));
-          }
-        }
-        if (!result) throw lastErr || new Error('Export ishlamadi');
-
-        const blob = result.blob;
-        const mime = result.mime || blob.type;
-        console.log('Export blob size:', blob.size, 'type:', mime, 'path:', result.path);
-        if (blob.size < 500) {
-          showToast('Export muvaffaqiyatsiz — qayta urinib ko\'ring');
-          closeExportUiModal();
-          return;
-        }
-        const ext = ExportCore.blobExt(mime, result.path === 'legacy' ? 'webm' : 'mp4');
-        const baseName = 'edited-' + ((state.videoFile && state.videoFile.name)?.replace(/\.[^.]+$/, '') || state.projectName || 'video') + '.' + ext;
-        const mb = (blob.size / (1024 * 1024)).toFixed(1);
-        showToast('Export tayyor! (' + mb + ' MB)');
-        showExportResultModal(blob, baseName, { mime: mime, path: result.path, videoOnly: result.videoOnly });
+        await exportTimeline();
+        try { if (typeof track === 'function') track('export_completed', { clip_count: (state.videoClips||[]).length }); } catch (_) {}
       } catch (err) {
-        if (ExportCore.isAbortError(err)) {
-          showToast('Export bekor qilindi');
-          closeExportUiModal();
-        } else {
-          console.error(err);
-          showToast('Export xatosi: ' + (err.message || 'noma\'lum'));
-          closeExportUiModal();
-        }
+        console.error(err);
+        showToast((typeof t==='function'?t('toast_export_error',{msg: err.message||"noma'lum"}):('Export xatosi: '+(err.message||"noma'lum"))));
+        try { if (typeof track === 'function') track('export_failed', { reason: String(err.message||'unknown').slice(0,80) }); } catch (_) {}
+        closeExportUiModal();
       } finally {
         state.isExporting = false;
-        _exportSession = null;
-        await releaseExportGuards();
+        window.removeEventListener('beforeunload', exportBeforeUnloadGuard);
+        if (_exportWakeLock) {
+          try { await _exportWakeLock.release(); } catch (_) {}
+          _exportWakeLock = null;
+        }
       }
-    }
+    });
 
-    async function exportTimeline(opts) {
-      opts = opts || {};
-      const abort = opts.abort || { aborted: false };
-      const settings = ExportCore.normalizeSettings(opts.settings || ExportCore.loadSettings());
-      const preferMp4 = !!opts.preferMp4;
+    async function exportTimeline() {
+      // Editor preview = export natijasi
+      // Bo'sh joylar qora, qirqilmaydi; musiqa video oxirida kesiladi
 
       const videoEnd = videoTimelineEnd();
       const exportDuration = Math.max(videoEnd, 0.5);
       let exportActiveClipId = null;
 
-      const { w: outW, h: outH } = getCanvasOutputSize({ maxSide: ExportCore.maxSide(settings) });
+      // Chiqish o'lchami — tanlangan canvas nisbatidan (js/canvas.js)
+      const { w: outW, h: outH } = getCanvasOutputSize();
 
+      // Canvas (DOM ga qo'shamiz — ba'zi brauzerlarda captureStream uchun kerak)
       const canvas = document.createElement('canvas');
       canvas.width = outW;
       canvas.height = outH;
@@ -173,6 +68,8 @@
       document.body.appendChild(canvas);
       const ctx = canvas.getContext('2d', { alpha: false });
 
+      // Export video (rasm uchun chizish) — muted, chunki audio alohida olinadi
+      // exportVideoElB — transition (incoming) clip uchun ikkinchi video
       let exportVideoEl = null;
       let exportVideoElB = null;
       let exportVideoElF = null;
@@ -199,40 +96,95 @@
         });
       }
 
-      const pack = {
-        live: true,
-        videoA: exportVideoEl,
-        videoB: exportVideoElB,
-        videoF: exportVideoElF,
-        imageEl: document.getElementById('image-preview'),
-        floatImgCache: exportFloatImgCache,
-        onVideoClip: function (clip, t, isTrans) {
-          if (!exportVideoAudioEl || !clip || clip.isImage) return;
-          const src = clip.url || state.videoUrl;
-          if (src && exportVideoAudioEl.src !== src) exportVideoAudioEl.src = src;
-          applyMediaVolume(exportVideoAudioEl, clip);
-          const sp = (clip.speed && clip.speed > 0) ? clip.speed : 1;
-          exportVideoAudioEl.playbackRate = sp;
-          const local = timelineToSource(clip, t);
-          if (Math.abs((exportVideoAudioEl.currentTime || 0) - local) > 0.12) {
-            try { exportVideoAudioEl.currentTime = local; } catch (_) {}
-          }
-          if (exportVideoAudioEl.paused) exportVideoAudioEl.play().catch(() => {});
-        },
-        onGap: function () {
-          if (exportVideoEl && videoPlaying) {
-            exportVideoEl.pause();
-            if (exportVideoElB) exportVideoElB.pause();
-            if (exportVideoAudioEl) exportVideoAudioEl.pause();
-            videoPlaying = false;
-            exportActiveClipId = null;
-          }
+      function ensureExportClipOnEl(el, clip, t) {
+        if (!el || !clip || clip.isImage) return;
+        const src = clip.url || state.videoUrl;
+        if (src && el.src !== src && !el.src.endsWith(src) && el.getAttribute('src') !== src) {
+          try {
+            if (el.src !== src) el.src = src;
+          } catch (_) {}
         }
-      };
+        const sp = (clip.speed && clip.speed > 0) ? clip.speed : 1;
+        el.playbackRate = sp;
+        const local = timelineToSource(clip, t);
+        if (Math.abs((el.currentTime || 0) - local) > 0.12) {
+          try { el.currentTime = local; } catch (_) {}
+        }
+        if (el.paused) el.play().catch(() => {});
+      }
 
+      function drawExportClipFrame(ctx, el, clip, t, outW, outH, alpha) {
+        // Faza 2B-5: clip.isImage global state.isImage ga bog'liq emas (B2).
+        if (!el || !clip) return;
+        if (!clip.isImage) {
+          ensureExportClipOnEl(el, clip, t);
+          if (el.readyState < 2) return;
+        }
+        const sw = clip.isImage ? (el.naturalWidth || el.width) : el.videoWidth;
+        const sh = clip.isImage ? (el.naturalHeight || el.height) : el.videoHeight;
+        if (!sw || !sh) return;
+        ctx.save();
+        ctx.globalAlpha = alpha != null ? alpha : 1;
+        try {
+          const fit = clip.fit || 'contain';
+          if (typeof canvasDrawFit === 'function') {
+            canvasDrawFit(ctx, el, sw, sh, outW, outH, fit);
+          } else {
+            canvasDrawContain(ctx, el, sw, sh, 0, 0, outW, outH);
+          }
+        } catch (_) {}
+        ctx.restore();
+      }
+
+      // Bitta qatlam (A yoki B) ni transition holatiga ko'ra chizadi. l = getTransitionLayers() dagi a/b.
+      function drawExportLayer(ctx, el, clip, t, outW, outH, l) {
+        if (l.a <= 0) {
+          // Ko'rinmasa ham video tayyor (seek/play) tursin — aks holda ko'rinadigan paytda kadr kechikadi
+          ensureExportClipOnEl(el, clip, t);
+          return;
+        }
+        ctx.save();
+        if (l.clip) {                                   // wipe: faqat shu to'rtburchak ichi
+          ctx.beginPath();
+          ctx.rect(l.clip[0] * outW, l.clip[1] * outH, (l.clip[2] - l.clip[0]) * outW, (l.clip[3] - l.clip[1]) * outH);
+          ctx.clip();
+        }
+        ctx.translate(l.tx * outW + outW / 2, l.ty * outH + outH / 2);
+        ctx.scale(l.s, l.s);                            // markazdan scale
+        ctx.translate(-outW / 2, -outH / 2);
+        // ctx.filter Safari'da yo'q — u yerda blur o'rniga oddiy fade+scale chiqadi (buzilmaydi)
+        if (l.blur > 0 && 'filter' in ctx) ctx.filter = 'blur(' + (l.blur * Math.min(outW, outH)) + 'px)';
+        drawExportClipFrame(ctx, el, clip, t, outW, outH, l.a);
+        ctx.restore();
+      }
+
+      function drawExportTransition(ctx, trans, elapsed, outW, outH) {
+        const { from: clipA, to: clipB, progress, start: tStart } = trans;
+        // B hali startTime ga yetmagan — virtual timeline (transition boshidan)
+        // O'tish B dan uzun bo'lishi mumkin (max = chap clip uzunligi): B kontenti tugagach oxirgi kadrda qotadi
+        // (aks holda B ning trim qilib tashlangan qismi ko'rinib qolardi)
+        const tB = Math.max(clipB.startTime,
+          Math.min(clipEnd(clipB) - 0.04, clipB.startTime + Math.max(0, elapsed - tStart)));
+        // Barcha turlarning matematikasi state.js dagi getTransitionLayers() da (toast preview'i ham shuni ishlatadi)
+        const L = getTransitionLayers(clipA.transitionType || 'fade', progress);
+        if (L.bg) {                                     // dip-black / dip-white
+          ctx.save();
+          ctx.fillStyle = L.bg;
+          ctx.fillRect(0, 0, outW, outH);
+          ctx.restore();
+        }
+        const layers = [
+          { el: exportVideoEl,  clip: clipA, t: elapsed, l: L.a },
+          { el: exportVideoElB, clip: clipB, t: tB,      l: L.b },
+        ];
+        if (L.top === 'a') layers.reverse();            // zoom: A ustida
+        for (const x of layers) drawExportLayer(ctx, x.el, x.clip, x.t, outW, outH, x.l);
+      }
+
+      // Audio mix: video o'z ovozi + musiqa (ikkala birga)
       let audioCtx = null;
       let exportMusicEl = null;
-      let exportVideoAudioEl = null;
+      let exportVideoAudioEl = null; // video ovozini yozish uchun
       let exportVideoGain = null;
       let exportMusicGain = null;
       const audioTracks = [];
@@ -243,9 +195,11 @@
         if (audioCtx.state === 'suspended') await audioCtx.resume();
         const dest = audioCtx.createMediaStreamDestination();
 
+        // 1) Video original audio
         if (!state.isImage && state.videoUrl) {
           exportVideoAudioEl = document.createElement('video');
           exportVideoAudioEl.src = state.videoUrl;
+          const firstAudioClip = state.videoClips.find(c => !c.isImage) || state.videoClips[0];
           exportVideoAudioEl.volume = 1;
           exportVideoAudioEl.muted = false;
           exportVideoAudioEl.playsInline = true;
@@ -269,10 +223,12 @@
           }
         }
 
+        // 2) Background music
         if (state.music?.url) {
           exportMusicEl = new Audio(state.music.url);
           exportMusicEl.crossOrigin = 'anonymous';
           exportMusicEl.preload = 'auto';
+          // volume via gain node (fade envelope)
           exportMusicEl.volume = 1;
           exportMusicEl.muted = false;
           await new Promise((resolve) => {
@@ -294,27 +250,33 @@
         audioTracks.push(...dest.stream.getAudioTracks());
       }
 
-      const canvasStream = canvas.captureStream(settings.fps);
+      const canvasStream = canvas.captureStream(30);
       const combinedStream = new MediaStream([
         ...canvasStream.getVideoTracks(),
         ...audioTracks
       ]);
 
+      const mimeCandidates = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+      ];
       let mimeType = '';
-      if (preferMp4) {
-        mimeType = ExportCore.pickMp4Mime();
-        if (!mimeType) throw new Error('MediaRecorder MP4 qo\'llab-quvvatlanmaydi');
-      } else {
-        mimeType = ExportCore.pickWebmMime();
+      for (const m of mimeCandidates) {
+        if (MediaRecorder.isTypeSupported(m)) { mimeType = m; break; }
       }
+      if (!mimeType) mimeType = 'video/webm';
 
       const chunks = [];
       let recorder;
-      const recOpts = { mimeType: mimeType, videoBitsPerSecond: ExportCore.videoBitrate(settings) };
       try {
-        recorder = new MediaRecorder(combinedStream, recOpts);
+        recorder = new MediaRecorder(combinedStream, {
+          mimeType,
+          videoBitsPerSecond: 4000000
+        });
       } catch (e) {
-        if (preferMp4) throw e;
         recorder = new MediaRecorder(combinedStream);
         mimeType = recorder.mimeType || 'video/webm';
       }
@@ -327,23 +289,9 @@
         recorder.onerror = (e) => reject(e.error || new Error('Recorder error'));
       });
 
-      let videoPlaying = false;
-      let musicStarted = false;
+      // Preview / playheadni qoldiramiz — foydalanuvchi export paytida ishlayveradi
 
-      async function cleanupLive() {
-        try { if (exportVideoEl) exportVideoEl.pause(); } catch (_) {}
-        try { if (exportVideoElB) exportVideoElB.pause(); } catch (_) {}
-        try { if (exportVideoAudioEl) exportVideoAudioEl.pause(); } catch (_) {}
-        try { if (exportMusicEl) exportMusicEl.pause(); } catch (_) {}
-        try { canvasStream.getTracks().forEach(t => t.stop()); } catch (_) {}
-        try { audioTracks.forEach(t => t.stop()); } catch (_) {}
-        [canvas, exportVideoEl, exportVideoElB, exportVideoElF, exportVideoAudioEl].forEach((el) => {
-          try { if (el && el.parentNode) el.parentNode.removeChild(el); } catch (_) {}
-        });
-        if (exportMusicEl) exportMusicEl.src = '';
-        try { if (audioCtx) await audioCtx.close(); } catch (_) {}
-      }
-
+      // Warm-up: bir necha qora kadr chizamiz
       for (let i = 0; i < 5; i++) {
         ctx.fillStyle = '#000';
         ctx.fillRect(0, 0, outW, outH);
@@ -353,7 +301,10 @@
       recorder.start(200);
 
       const startPerf = performance.now();
+      let musicStarted = false;
+      let videoPlaying = false;
 
+      // Agar birinchi clip 0 dan boshlansa — oldindan play
       const firstClip = findClipAtTime(0) || state.videoClips[0];
       if (exportVideoEl && firstClip && firstClip.startTime <= 0.05) {
         const sp0 = (firstClip.speed && firstClip.speed > 0) ? firstClip.speed : 1;
@@ -375,117 +326,303 @@
         exportActiveClipId = firstClip.id;
       }
 
-      try {
-        await new Promise((resolveDone, rejectDone) => {
-          const tick = () => {
-            if (abort.aborted) {
-              rejectDone(ExportCore.ExportAbortedError());
-              return;
-            }
-            const elapsed = (performance.now() - startPerf) / 1000;
-            if (elapsed >= exportDuration) {
-              resolveDone();
-              return;
-            }
+      await new Promise((resolveDone) => {
+        const tick = () => {
+          const elapsed = (performance.now() - startPerf) / 1000;
+          if (elapsed >= exportDuration) {
+            resolveDone();
+            return;
+          }
 
-            pack.onVideoClip = function (clip, t) {
-              exportActiveClipId = clip && clip.id;
-              videoPlaying = true;
-              if (!exportVideoAudioEl || !clip || clip.isImage) return;
-              const src = clip.url || state.videoUrl;
-              if (src && exportVideoAudioEl.src !== src) exportVideoAudioEl.src = src;
-              applyMediaVolume(exportVideoAudioEl, clip);
-              const sp = (clip.speed && clip.speed > 0) ? clip.speed : 1;
+          // Faza 2B-5: chizish yagona renderFrame orqali (B2–B5).
+          // Audio yo'li o'zgarishsiz — real-time MediaRecorder sikli saqlanadi.
+          const trans = typeof getActiveTransition === 'function' ? getActiveTransition(elapsed) : null;
+          const clip = findClipAtTime(elapsed);
+
+          // Video elementlarni seek/play qilish (renderFrame manba olishi uchun)
+          if (trans) {
+            videoPlaying = true;
+            exportActiveClipId = trans.from.id;
+            if (exportVideoEl && !trans.from.isImage) ensureExportClipOnEl(exportVideoEl, trans.from, elapsed);
+            if (exportVideoElB && trans.to && !trans.to.isImage) {
+              const tB = Math.max(trans.to.startTime,
+                Math.min(clipEnd(trans.to) - 0.04, trans.to.startTime + Math.max(0, elapsed - trans.start)));
+              ensureExportClipOnEl(exportVideoElB, trans.to, tB);
+            }
+            if (exportVideoAudioEl && !trans.from.isImage) {
+              const src = trans.from.url || state.videoUrl;
+              if (exportVideoAudioEl.src !== src) exportVideoAudioEl.src = src;
+              applyMediaVolume(exportVideoAudioEl, trans.from);
+              const sp = (trans.from.speed && trans.from.speed > 0) ? trans.from.speed : 1;
               exportVideoAudioEl.playbackRate = sp;
-              const local = timelineToSource(clip, t);
+              const local = timelineToSource(trans.from, elapsed);
               if (Math.abs((exportVideoAudioEl.currentTime || 0) - local) > 0.12) {
                 try { exportVideoAudioEl.currentTime = local; } catch (_) {}
               }
               if (exportVideoAudioEl.paused) exportVideoAudioEl.play().catch(() => {});
-            };
-
-            renderFrame(ctx, elapsed, outW, outH, pack);
-
-            if (exportVideoGain) {
-              const vc = findClipAtTime(elapsed);
-              if (vc && !vc.isImage) {
-                const base = vc.muted ? 0 : (vc.volume != null ? vc.volume : 1);
-                const env = typeof getClipOpacity === 'function' ? getClipOpacity(vc, elapsed) : 1;
-                exportVideoGain.gain.value = Math.max(0, Math.min(1, base * env));
+            }
+          } else if (clip) {
+            if (!clip.isImage && exportVideoEl) {
+              if (!videoPlaying || exportActiveClipId !== clip.id) {
+                videoPlaying = true;
+                exportActiveClipId = clip.id;
+                const src = clip.url || state.videoUrl;
+                if (exportVideoEl.src !== src) {
+                  exportVideoEl.src = src;
+                  if (exportVideoAudioEl) exportVideoAudioEl.src = src;
+                }
+                const sp = (clip.speed && clip.speed > 0) ? clip.speed : 1;
+                exportVideoEl.playbackRate = sp;
+                if (exportVideoAudioEl) {
+                  exportVideoAudioEl.volume = 1;
+                  exportVideoAudioEl.muted = false;
+                  exportVideoAudioEl.playbackRate = sp;
+                }
+                const local = timelineToSource(clip, elapsed);
+                exportVideoEl.currentTime = local;
+                exportVideoEl.play().catch(() => {});
+                if (exportVideoAudioEl) {
+                  exportVideoAudioEl.currentTime = local;
+                  exportVideoAudioEl.play().catch(() => {});
+                }
               } else {
-                exportVideoGain.gain.value = 0;
+                ensureExportClipOnEl(exportVideoEl, clip, elapsed);
               }
             }
-            if (exportMusicGain && state.music) {
-              const m = state.music;
-              const mStart = m.startTime;
-              const mEnd = m.startTime + (m.trimEnd - m.trimStart);
-              let env = 1;
-              if (elapsed < mStart || elapsed >= mEnd) env = 0;
-              else {
-                const fi = Math.max(0, m.fadeIn || 0);
-                const fo = Math.max(0, m.fadeOut || 0);
-                if (fi > 0 && elapsed < mStart + fi) env = (elapsed - mStart) / fi;
-                if (fo > 0 && elapsed > mEnd - fo) env = Math.min(env, (mEnd - elapsed) / fo);
-                env = Math.max(0, Math.min(1, env));
-              }
-              const base = m.muted ? 0 : (m.volume != null ? m.volume : 1);
-              exportMusicGain.gain.value = Math.max(0, Math.min(1, base * env));
+          } else if (exportVideoEl && videoPlaying) {
+            exportVideoEl.pause();
+            if (exportVideoElB) exportVideoElB.pause();
+            if (exportVideoAudioEl) exportVideoAudioEl.pause();
+            videoPlaying = false;
+            exportActiveClipId = null;
+          }
+
+          // Float video elementlarni tayyorlash
+          if (typeof findFloatedAtTime === 'function' && exportVideoElF) {
+            const floats = findFloatedAtTime(elapsed);
+            for (const fc of floats) {
+              if (!fc.isImage) ensureExportClipOnEl(exportVideoElF, fc, elapsed);
             }
+          }
 
-            if (exportMusicEl && state.music) {
-              const m = state.music;
-              const mEnd = Math.min(m.startTime + (m.trimEnd - m.trimStart), videoEnd);
-              if (!musicStarted && elapsed >= m.startTime && elapsed < mEnd) {
-                exportMusicEl.volume = 1;
-                exportMusicEl.muted = false;
-                exportMusicEl.currentTime = m.trimStart + Math.max(0, elapsed - m.startTime);
-                exportMusicEl.play().catch(() => {});
-                musicStarted = true;
-              }
-              if (musicStarted && elapsed >= mEnd) {
-                exportMusicEl.pause();
+          // Yagona chizish
+          const useRenderFrame = window.EMR && typeof window.EMR.renderFrame === 'function';
+          if (useRenderFrame) {
+            const exportProvider = {
+              getFrame(c, sourceTime) {
+                if (!c) return null;
+                if (c.isImage) {
+                  let img = exportFloatImgCache.get(c.url);
+                  if (!img) {
+                    img = new Image();
+                    img.src = c.url;
+                    exportFloatImgCache.set(c.url, img);
+                  }
+                  return (img.complete && img.naturalWidth) ? img : img;
+                }
+                // asosiy A
+                if (exportVideoEl && (exportActiveClipId === c.id || (clip && clip.id === c.id))) {
+                  ensureExportClipOnEl(exportVideoEl, c, elapsed);
+                  return exportVideoEl.readyState >= 2 ? exportVideoEl : exportVideoEl;
+                }
+                if (exportVideoElB && trans && trans.to && trans.to.id === c.id) {
+                  return exportVideoElB.readyState >= 2 ? exportVideoElB : exportVideoElB;
+                }
+                if (exportVideoElF) {
+                  ensureExportClipOnEl(exportVideoElF, c, elapsed);
+                  return exportVideoElF.readyState >= 2 ? exportVideoElF : exportVideoElF;
+                }
+                return null;
+              },
+            };
+            try {
+              window.EMR.renderFrame(ctx, {
+                canvas: state.canvas,
+                clips: state.videoClips,
+                textClips: state.textClips || [],
+                canvasW: outW,
+                canvasH: outH,
+              }, elapsed, exportProvider, {
+                getTransitionLayers: typeof getTransitionLayers === 'function' ? getTransitionLayers : null,
+                clipDuration: typeof clipDuration === 'function' ? clipDuration : null,
+                clipEnd: typeof clipEnd === 'function' ? clipEnd : null,
+                timelineToSource: typeof timelineToSource === 'function' ? timelineToSource : null,
+                isFloated: typeof isFloated === 'function' ? isFloated : null,
+                drawSafeZone: false,
+              });
+            } catch (err) {
+              console.error('[export] renderFrame', err);
+            }
+          } else {
+            // Fallback: eski chizish (modul yuklanmagan bo'lsa)
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, outW, outH);
+            if (trans && exportVideoEl) {
+              drawExportTransition(ctx, trans, elapsed, outW, outH);
+            } else if (clip) {
+              const fadeAlpha = typeof getClipOpacity === 'function' ? getClipOpacity(clip, elapsed) : 1;
+              if (clip.isImage) {
+                let img = exportFloatImgCache.get(clip.url);
+                if (!img) { img = new Image(); img.src = clip.url; exportFloatImgCache.set(clip.url, img); }
+                if (img.complete && img.naturalWidth) {
+                  ctx.save();
+                  ctx.globalAlpha = fadeAlpha;
+                  const fit = clip.fit || 'contain';
+                  if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, img, img.naturalWidth, img.naturalHeight, outW, outH, fit);
+                  else canvasDrawContain(ctx, img, img.naturalWidth, img.naturalHeight, 0, 0, outW, outH);
+                  ctx.restore();
+                }
+              } else if (exportVideoEl && exportVideoEl.readyState >= 2) {
+                ctx.save();
+                ctx.globalAlpha = fadeAlpha;
+                const fit = clip.fit || 'contain';
+                if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, exportVideoEl, exportVideoEl.videoWidth, exportVideoEl.videoHeight, outW, outH, fit);
+                else canvasDrawContain(ctx, exportVideoEl, exportVideoEl.videoWidth, exportVideoEl.videoHeight, 0, 0, outW, outH);
+                ctx.restore();
               }
             }
+            if (typeof findFloatedAtTime === 'function') {
+              const floats = findFloatedAtTime(elapsed);
+              for (const fc of floats) {
+                const fa = typeof getClipOpacity === 'function' ? getClipOpacity(fc, elapsed) : 1;
+                ctx.save();
+                ctx.globalAlpha = fa * (fc.opacity != null ? fc.opacity : 1);
+                if (fc.isImage) {
+                  let img = exportFloatImgCache.get(fc.url);
+                  if (!img) { img = new Image(); img.src = fc.url; exportFloatImgCache.set(fc.url, img); }
+                  if (img.complete && img.naturalWidth) {
+                    const fit = fc.fit || 'contain';
+                    if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, img, img.naturalWidth, img.naturalHeight, outW, outH, fit);
+                    else canvasDrawContain(ctx, img, img.naturalWidth, img.naturalHeight, 0, 0, outW, outH);
+                  }
+                } else if (exportVideoElF) {
+                  ensureExportClipOnEl(exportVideoElF, fc, elapsed);
+                  if (exportVideoElF.readyState >= 2) {
+                    const fit = fc.fit || 'contain';
+                    if (typeof canvasDrawFit === 'function') canvasDrawFit(ctx, exportVideoElF, exportVideoElF.videoWidth, exportVideoElF.videoHeight, outW, outH, fit);
+                    else canvasDrawContain(ctx, exportVideoElF, exportVideoElF.videoWidth, exportVideoElF.videoHeight, 0, 0, outW, outH);
+                  }
+                }
+                ctx.restore();
+              }
+            }
+            // Matn (fallback)
+            if (typeof state.textClips !== 'undefined') {
+              for (const tc of (state.textClips || [])) {
+                if (elapsed < tc.startTime || elapsed >= tc.startTime + Math.max(0.1, tc.duration || 0)) continue;
+                // B4 formula
+                const fontSize = (tc.fontSize || 32) * (outH / 720);
+                ctx.save();
+                ctx.font = (tc.bold ? 'bold ' : '') + fontSize + 'px sans-serif';
+                ctx.textAlign = tc.align || 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = tc.color || '#fff';
+                ctx.fillText(tc.text || '', (tc.x != null ? tc.x : 0.5) * outW, (tc.y != null ? tc.y : 0.85) * outH);
+                ctx.restore();
+              }
+            }
+          }
 
-            const pct = Math.min(100, Math.round((elapsed / exportDuration) * 100));
-            const eta = ExportCore.estimateRemainingSec(elapsed / exportDuration, performance.now() - startPerf);
-            updateExportProgress(pct, eta);
+          // Audio fade envelope
+          if (exportVideoGain) {
+            const vc = findClipAtTime(elapsed);
+            if (vc && !vc.isImage) {
+              const base = vc.muted ? 0 : (vc.volume != null ? vc.volume : 1);
+              const env = typeof getClipOpacity === 'function' ? getClipOpacity(vc, elapsed) : 1;
+              exportVideoGain.gain.value = Math.max(0, Math.min(1, base * env));
+            } else {
+              exportVideoGain.gain.value = 0;
+            }
+          }
+          if (exportMusicGain && state.music) {
+            const m = state.music;
+            const mStart = m.startTime;
+            const mEnd = m.startTime + (m.trimEnd - m.trimStart);
+            let env = 1;
+            if (elapsed < mStart || elapsed >= mEnd) env = 0;
+            else {
+              const fi = Math.max(0, m.fadeIn || 0);
+              const fo = Math.max(0, m.fadeOut || 0);
+              if (fi > 0 && elapsed < mStart + fi) env = (elapsed - mStart) / fi;
+              if (fo > 0 && elapsed > mEnd - fo) env = Math.min(env, (mEnd - elapsed) / fo);
+              env = Math.max(0, Math.min(1, env));
+            }
+            const base = m.muted ? 0 : (m.volume != null ? m.volume : 1);
+            exportMusicGain.gain.value = Math.max(0, Math.min(1, base * env));
+          }
 
-            requestAnimationFrame(tick);
-          };
+          // Text overlay
+          if (typeof drawTextOverlaysOnCanvas === 'function') {
+            try { drawTextOverlaysOnCanvas(ctx, outW, outH, elapsed); } catch (_) {}
+          }
+
+          // Musiqa (video ovozi bilan birga)
+          if (exportMusicEl && state.music) {
+            const m = state.music;
+            const mEnd = Math.min(m.startTime + (m.trimEnd - m.trimStart), videoEnd);
+            if (!musicStarted && elapsed >= m.startTime && elapsed < mEnd) {
+              exportMusicEl.volume = 1;
+              exportMusicEl.muted = false;
+              exportMusicEl.currentTime = m.trimStart + Math.max(0, elapsed - m.startTime);
+              exportMusicEl.play().catch(() => {});
+              musicStarted = true;
+            }
+            if (musicStarted && elapsed >= mEnd) {
+              exportMusicEl.pause();
+            }
+          }
+
+          const pct = Math.min(100, Math.round((elapsed / exportDuration) * 100));
+          updateExportProgress(pct);
+
           requestAnimationFrame(tick);
-        });
-
-        if (exportVideoEl) exportVideoEl.pause();
-        if (exportVideoElB) exportVideoElB.pause();
-        if (exportVideoAudioEl) exportVideoAudioEl.pause();
-        if (exportMusicEl) exportMusicEl.pause();
-
-        if (recorder.state === 'recording') {
-          try { recorder.requestData(); } catch (_) {}
-          await new Promise(r => setTimeout(r, 150));
-          recorder.stop();
-        }
-        await recorded;
-
-        const blob = new Blob(chunks, { type: mimeType });
-        await cleanupLive();
-        return {
-          blob: blob,
-          mime: mimeType,
-          path: ExportCore.isMp4Mime(mimeType) ? 'mp4' : 'legacy'
         };
-      } catch (err) {
-        try {
-          if (recorder && recorder.state === 'recording') recorder.stop();
-        } catch (_) {}
-        await cleanupLive();
-        throw err;
+        requestAnimationFrame(tick);
+      });
+
+      // Yakunlash
+      if (exportVideoEl) exportVideoEl.pause();
+      if (exportVideoElB) exportVideoElB.pause();
+      if (exportVideoAudioEl) exportVideoAudioEl.pause();
+      if (exportMusicEl) exportMusicEl.pause();
+
+      // Oxirgi ma'lumotlarni olish
+      if (recorder.state === 'recording') {
+        try { recorder.requestData(); } catch (_) {}
+        await new Promise(r => setTimeout(r, 150));
+        recorder.stop();
       }
+      await recorded;
+
+      // Tozalash
+      canvasStream.getTracks().forEach(t => t.stop());
+      audioTracks.forEach(t => t.stop());
+      if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
+      if (exportVideoEl?.parentNode) exportVideoEl.parentNode.removeChild(exportVideoEl);
+      if (exportVideoElB?.parentNode) exportVideoElB.parentNode.removeChild(exportVideoElB);
+      if (exportVideoElF?.parentNode) exportVideoElF.parentNode.removeChild(exportVideoElF);
+      if (exportVideoAudioEl?.parentNode) exportVideoAudioEl.parentNode.removeChild(exportVideoAudioEl);
+      if (exportMusicEl) exportMusicEl.src = '';
+      try { if (audioCtx) await audioCtx.close(); } catch (_) {}
+
+      const blob = new Blob(chunks, { type: mimeType });
+      console.log('Export blob size:', blob.size, 'type:', mimeType, 'chunks:', chunks.length);
+
+      if (blob.size < 500) {
+        showToast('Export muvaffaqiyatsiz — qayta urinib ko\'ring');
+        return;
+      }
+
+      const ext = 'webm';
+      const baseName = 'edited-' + ((state.videoFile && state.videoFile.name)?.replace(/\.[^.]+$/, '') || state.projectName || 'video') + '.' + ext;
+
+      const mb = (blob.size / (1024 * 1024)).toFixed(1);
+      showToast('Export tayyor! (' + mb + ' MB)');
+
+      // Kichik modal: Download / MRdrive (to'liq ekran lock yo'q)
+      showExportResultModal(blob, baseName);
     }
-
-
 
     // ---------- MP4 (ffmpeg.wasm) ----------
     // B15 tuzatish: ilgari ffmpeg.js + @ffmpeg/util index.html'da <script> bilan
@@ -601,10 +738,7 @@
               '<div class="export-ui-sub" id="export-ui-sub">Ishlashda davom eting</div>' +
             '</div>' +
           '</div>' +
-          '<div class="export-ui-banner" id="export-ui-banner">Tabni yopma / ekranni o\'chirma</div>' +
-          '<div class="export-ui-settings" id="export-ui-settings" hidden></div>' +
           '<div class="export-ui-bar"><i id="export-ui-bar"></i></div>' +
-          '<div class="export-ui-eta" id="export-ui-eta"></div>' +
           '<div class="export-ui-actions" id="export-ui-actions" hidden></div>' +
           '<div class="export-ui-status" id="export-ui-status"></div>' +
         '</div>';
@@ -621,118 +755,45 @@
       return overlay;
     }
 
-    function showExportSetupModal() {
+    function showExportProgressModal(pct) {
       const overlay = ensureExportCard();
-      overlay.classList.remove('is-done', 'is-mini', 'is-running');
-      overlay.classList.add('is-setup');
-      const s = ExportCore.loadSettings();
-      const title = overlay.querySelector('#export-ui-title');
-      const sub = overlay.querySelector('#export-ui-sub');
-      const settings = overlay.querySelector('#export-ui-settings');
-      const actions = overlay.querySelector('#export-ui-actions');
-      const status = overlay.querySelector('#export-ui-status');
-      const banner = overlay.querySelector('#export-ui-banner');
-      const eta = overlay.querySelector('#export-ui-eta');
-      if (title) title.textContent = 'Export';
-      if (sub) sub.textContent = 'Sifatni tanlang';
-      if (banner) banner.hidden = false;
-      if (eta) eta.textContent = '';
-      if (status) { status.textContent = ''; status.className = 'export-ui-status'; }
-      if (settings) {
-        settings.hidden = false;
-        settings.innerHTML =
-          '<div class="export-ui-row">' +
-            '<label><input type="radio" name="emr-exp-q" value="720p"' + (s.quality === '720p' ? ' checked' : '') + '> 720p</label>' +
-            '<label><input type="radio" name="emr-exp-q" value="1080p"' + (s.quality === '1080p' ? ' checked' : '') + '> 1080p</label>' +
-          '</div>' +
-          '<div class="export-ui-row">' +
-            '<label><input type="checkbox" id="emr-exp-fps60"' + (s.fps === 60 ? ' checked' : '') + '> 60 fps (ixtiyoriy, default 30)</label>' +
-          '</div>' +
-          '<div class="export-ui-row export-ui-col">' +
-            '<label><input type="radio" name="emr-exp-b" value="telegram"' + (s.bitrate === 'telegram' ? ' checked' : '') + '> Telegram (kichik)</label>' +
-            '<label><input type="radio" name="emr-exp-b" value="good"' + (s.bitrate === 'good' ? ' checked' : '') + '> Yaxshi</label>' +
-            '<label><input type="radio" name="emr-exp-b" value="high"' + (s.bitrate === 'high' ? ' checked' : '') + '> Yuqori</label>' +
-          '</div>' +
-          '<p class="export-ui-note">Tez export: tezlik (0.5–2×) ovoz balandligini (pitch) ham o\'zgartiradi.</p>';
-      }
-      if (actions) {
-        actions.hidden = false;
-        actions.innerHTML =
-          '<button type="button" class="export-ui-download" id="export-ui-start">Boshlash</button>' +
-          '<button type="button" class="export-ui-mrdrive" id="export-ui-fast"><span>Tez export (beta)</span></button>' +
-          '<button type="button" class="export-ui-mp4" id="export-ui-cancel-setup">Bekor</button>';
-        actions.querySelector('#export-ui-start').onclick = () => beginExport(false);
-        actions.querySelector('#export-ui-fast').onclick = () => beginExport(true);
-        actions.querySelector('#export-ui-cancel-setup').onclick = () => closeExportUiModal();
-      }
-    }
-
-    function showExportProgressModal(pct, extra) {
-      extra = extra || {};
-      const overlay = ensureExportCard();
-      overlay.classList.remove('is-done', 'is-setup', 'is-mini');
-      overlay.classList.add('is-running');
+      overlay.classList.remove('is-done');
       const title = overlay.querySelector('#export-ui-title');
       const sub = overlay.querySelector('#export-ui-sub');
       const actions = overlay.querySelector('#export-ui-actions');
-      const settings = overlay.querySelector('#export-ui-settings');
-      const banner = overlay.querySelector('#export-ui-banner');
       if (title) title.textContent = 'Export';
       if (sub) sub.textContent = 'Ishlashda davom eting';
-      if (banner) banner.hidden = false;
-      if (settings) settings.hidden = true;
-      if (actions) {
-        actions.hidden = false;
-        actions.innerHTML = '<button type="button" class="export-ui-mp4" id="export-ui-abort">Bekor qilish</button>';
-        const abortBtn = actions.querySelector('#export-ui-abort');
-        if (abortBtn) {
-          abortBtn.onclick = () => {
-            if (_exportSession) _exportSession.aborted = true;
-          };
-        }
-      }
-      updateExportProgress(pct || 0, extra.eta);
+      if (actions) { actions.hidden = true; actions.innerHTML = ''; }
+      updateExportProgress(pct || 0);
     }
 
-    function updateExportProgress(pct, etaSec) {
+    function updateExportProgress(pct) {
       pct = Math.max(0, Math.min(100, pct | 0));
       const ring = document.getElementById('export-ui-ringp');
       const bar = document.getElementById('export-ui-bar');
       const title = document.getElementById('export-ui-title');
-      const etaEl = document.getElementById('export-ui-eta');
       if (ring) ring.textContent = String(pct);
       if (bar) bar.style.width = pct + '%';
       if (title && !document.querySelector('#export-ui-modal.is-done')) title.textContent = 'Export';
-      if (etaEl) etaEl.textContent = ExportCore.formatEta(etaSec);
       const card = document.querySelector('#export-ui-modal .export-ui-card');
       if (card) card.style.setProperty('--p', String(pct / 100));
     }
 
-    function showExportResultModal(webmBlob, webmName, info) {
-      info = info || {};
+    function showExportResultModal(webmBlob, webmName) {
       const overlay = ensureExportCard();
       overlay.classList.add('is-done');
-      overlay.classList.remove('is-mini', 'is-setup', 'is-running');
-      const isMp4 = ExportCore.isMp4Mime(info.mime || webmBlob.type) || /\.mp4$/i.test(webmName);
+      overlay.classList.remove('is-mini');
       const title = overlay.querySelector('#export-ui-title');
       const sub = overlay.querySelector('#export-ui-sub');
       const ring = overlay.querySelector('#export-ui-ringp');
       const bar = overlay.querySelector('#export-ui-bar');
       const actions = overlay.querySelector('#export-ui-actions');
       const status = overlay.querySelector('#export-ui-status');
-      const settings = overlay.querySelector('#export-ui-settings');
-      const banner = overlay.querySelector('#export-ui-banner');
-      const eta = overlay.querySelector('#export-ui-eta');
-      if (settings) settings.hidden = true;
-      if (banner) banner.hidden = true;
-      if (eta) eta.textContent = '';
       if (title) title.textContent = 'Tayyor';
-      const kind = isMp4 ? 'MP4' : 'WebM';
-      const extra = info.videoOnly ? ' · audiosiz' : '';
-      if (sub) sub.textContent = ((webmBlob.size / (1024 * 1024)).toFixed(1)) + ' MB · ' + kind + extra;
+      if (sub) sub.textContent = ((webmBlob.size / (1024 * 1024)).toFixed(1)) + ' MB · WebM';
       if (ring) ring.textContent = '✓';
       if (bar) bar.style.width = '100%';
-      if (status) { status.textContent = info.path ? ('yo\'l: ' + info.path) : ''; status.className = 'export-ui-status'; }
+      if (status) { status.textContent = ''; status.className = 'export-ui-status'; }
       if (!actions) return;
       actions.hidden = false;
       actions.innerHTML =
@@ -740,7 +801,7 @@
         '<button type="button" class="export-ui-mrdrive" id="export-ui-mrdrive">' +
           '<span>MRdrive</span><span class="export-ui-mlogo">M</span>' +
         '</button>' +
-        (isMp4 ? '' : '<button type="button" class="export-ui-mp4" id="export-ui-mp4">MP4</button>');
+        '<button type="button" class="export-ui-mp4" id="export-ui-mp4">MP4</button>';
 
       actions.querySelector('#export-ui-dl').onclick = () => {
         const url = URL.createObjectURL(webmBlob);
@@ -758,7 +819,7 @@
         showMrdriveExportModal(webmBlob, webmName);
       };
       const mp4Btn = actions.querySelector('#export-ui-mp4');
-      if (mp4Btn) mp4Btn.onclick = async () => {
+      mp4Btn.onclick = async () => {
         mp4Btn.disabled = true;
         if (status) { status.textContent = 'MP4...'; status.className = 'export-ui-status'; }
         try {

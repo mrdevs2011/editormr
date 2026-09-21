@@ -5,7 +5,7 @@
     // Preview (#preview-stack) shu nisbatda o'lchanadi, export (export.js) getCanvasOutputSize() dan o'qiydi,
     // clip'lar canvas ichiga "contain" (qora chetlar bilan) joylashadi.
 
-    const CANVAS_MAX_SIDE = 1280;   // preview masshtabi; export sifat tanlovi maxSide ni alohida beradi
+    const CANVAS_MAX_SIDE = 1280;   // export.js dagi eski chegara bilan bir xil (uzun tomon)
 
     // Rasmlardagi jadval: nisbat, nom, qayerda ishlatiladi
     const CANVAS_PRESETS = [
@@ -89,16 +89,33 @@
     }
 
     // Export (va preview'dagi matn masshtabi) uchun chiqish o'lchami. Har ikki tomon juft (ffmpeg/x264 uchun).
-    // opts.maxSide berilsa (720p=1280, 1080p=1920) shu cap ishlatiladi; preview default 1280.
-    function getCanvasOutputSize(opts) {
-      const maxSide = (opts && opts.maxSide) ? opts.maxSide : CANVAS_MAX_SIDE;
+    // Faza 2A-2: birinchi navbatda state.canvas {w,h}; yo'q bo'lsa preset/fit.
+    // quality: '720' | '1080' | null (default = CANVAS_MAX_SIDE / canvas.w)
+    function getCanvasOutputSize(quality) {
+      // Aniq loyiha kanvasi
+      if (state.canvas && state.canvas.w && state.canvas.h) {
+        const r = state.canvas.w / state.canvas.h;
+        let maxSide = CANVAS_MAX_SIDE;
+        if (quality === '1080') maxSide = 1080;
+        else if (quality === '720') maxSide = 720;
+        let w, h;
+        if (r >= 1) { w = maxSide; h = maxSide / r; }
+        else { h = maxSide; w = maxSide * r; }
+        w = Math.round(w); h = Math.round(h);
+        w = Math.max(2, w - (w % 2));
+        h = Math.max(2, h - (h % 2));
+        return { w, h };
+      }
       const p = canvasPresetById(state.canvasRatio);
       let w, h;
+      let maxSide = CANVAS_MAX_SIDE;
+      if (quality === '1080') maxSide = 1080;
+      else if (quality === '720') maxSide = 720;
       if (p && p.r) {
         if (p.r >= 1) { w = maxSide; h = maxSide / p.r; }
         else { h = maxSide; w = maxSide * p.r; }
       } else {
-        // Fit: manba o'lchami, faqat kattasi kichraytiriladi (eski xatti-harakat)
+        // Fit: manba o'lchami, faqat kattasi kichraytiriladi
         const s = getFitSourceSize();
         w = s.w; h = s.h;
         const m = Math.max(w, h);
@@ -116,6 +133,33 @@
       const k = Math.min(dw / sw, dh / sh);
       const w = sw * k, h = sh * k;
       ctx.drawImage(src, dx + (dw - w) / 2, dy + (dh - h) / 2, w, h);
+    }
+
+    // Faza 2A-3: fit rejimlari (contain / cover / blur). Geometriya render/geometry.js bilan bir xil.
+    function canvasDrawFit(ctx, src, sw, sh, canvasW, canvasH, mode) {
+      if (!sw || !sh) { ctx.drawImage(src, 0, 0, canvasW, canvasH); return; }
+      const m = mode || 'contain';
+      if (m === 'cover') {
+        const k = Math.max(canvasW / sw, canvasH / sh);
+        const w = sw * k, h = sh * k;
+        ctx.drawImage(src, (canvasW - w) / 2, (canvasH - h) / 2, w, h);
+        return;
+      }
+      if (m === 'blur') {
+        const kCover = Math.max(canvasW / sw, canvasH / sh);
+        const bw = sw * kCover, bh = sh * kCover;
+        ctx.save();
+        ctx.filter = 'blur(24px)';
+        try { ctx.drawImage(src, (canvasW - bw) / 2, (canvasH - bh) / 2, bw, bh); } catch (_) {}
+        ctx.restore();
+        ctx.filter = 'none';
+        const k = Math.min(canvasW / sw, canvasH / sh);
+        const w = sw * k, h = sh * k;
+        ctx.drawImage(src, (canvasW - w) / 2, (canvasH - h) / 2, w, h);
+        return;
+      }
+      // contain
+      canvasDrawContain(ctx, src, sw, sh, 0, 0, canvasW, canvasH);
     }
 
     // ---------- Preview qutisi ----------
@@ -171,11 +215,25 @@
     function setCanvasRatio(id, opts) {
       opts = opts || {};
       id = canvasValidId(id);
-      if (id === state.canvasRatio) return;
+      if (id === state.canvasRatio && state.canvas) {
+        // allaqachon shu preset + canvas obyekt bor
+        if (!opts.force) return;
+      }
       if (opts.history !== false && typeof pushHistory === 'function') pushHistory();
       state.canvasRatio = id;
+      // Faza 2A-2: state.canvas {w,h,fps} — export o'lchami shundan.
+      // 'fit' / null → asl nisbat (birinchi asosiy clip).
+      if (id === 'fit') {
+        state.canvas = null;
+      } else {
+        const out = getCanvasOutputSize();
+        state.canvas = { w: out.w, h: out.h, fps: 30 };
+      }
       applyCanvas();
       if (opts.save !== false && typeof scheduleSave === 'function') scheduleSave();
+      if (typeof window.EMR !== 'undefined' && window.EMR.requestPreviewRedraw) {
+        try { window.EMR.requestPreviewRedraw(); } catch (_) {}
+      }
     }
 
     // ---------- Rasmlar: har bir nisbat ichida shu formatni ishlatadigan ilovalar logotiplari ----------
@@ -260,7 +318,7 @@
           '<div class="cv-row" role="radiogroup" aria-label="Aspect ratio">' +
             CANVAS_PRESETS.map(canvasCardHtml).join('') +
           '</div>' +
-          '<div class="cv-foot">Export o‘lchami: <b id="cv-foot-size"></b></div>' +
+          '<div class="cv-foot">Export o‘lchami: <b id="cv-foot-size"></b> · <button type="button" class="cv-safe-btn" id="cv-safe-btn">Xavfsiz zona</button></div>' +
         '</div>';
       document.body.appendChild(ov);
 
@@ -273,6 +331,20 @@
           setTimeout(closeCanvasPicker, 160);       // tanlov ko'rinib tursin, keyin yopiladi
         });
       });
+
+      const safeBtn = ov.querySelector('#cv-safe-btn');
+      if (safeBtn) {
+        safeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (window.EMR && window.EMR.setSafeZoneVisible) {
+            const on = !(window.EMR.isSafeZoneVisible && window.EMR.isSafeZoneVisible());
+            window.EMR.setSafeZoneVisible(on);
+            safeBtn.classList.toggle('is-on', on);
+            showToast(on ? 'Xavfsiz zona yoqildi (faqat preview)' : 'Xavfsiz zona o\'chirildi');
+          }
+        });
+      }
+
       canvasPickerEl = ov;
       return ov;
     }

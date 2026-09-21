@@ -218,26 +218,29 @@ Har faza oxirida shuni bajar va jadvalga yoz (`BENCHMARKS.md`).
 
 #### 1A — Tez g'alaba (1–3 kun) · sinov: "MP4 bevosita"
 
-- [x] `MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a')` tekshir. Qo'llab-quvvatlansa (yangi Chrome/Edge, Safari) — **WebM → ffmpeg bosqichini butunlay o'tkazib yubor**, natija bevosita `.mp4`. Qo'llab-quvvatlamasa — hozirgi yo'l. **Kod yozildi, brauzerda sinalmadi.**
-- [x] Export modalida: **bekor qilish** tugmasi, progress + taxminiy qolgan vaqt, "tabni yopma / ekranni o'chirma" banner. **Kod yozildi, brauzerda sinalmadi.**
-- [x] Chiqish o'lchami: loyiha sozlamasi (hozircha 720p / 1080p tanlovi), 1280 cap'ni tanlovga aylantir. Bitrate presetlari: *Telegram (kichik)*, *Yaxshi*, *Yuqori*. Tanlov `localStorage` (`emr_export_settings_v1`). Preview masshtabi hali 1280 cap. **Kod yozildi, brauzerda sinalmadi.**
-- [x] WebM'da davomiylik metadata'si yo'qligi — 1A dan keyin faqat fallback yo'lda qoladi, shu yerda vaqt sarflanmadi.
+- [ ] `MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a')` tekshir. Qo'llab-quvvatlansa (yangi Chrome/Edge, Safari) — **WebM → ffmpeg bosqichini butunlay o'tkazib yubor**, natija bevosita `.mp4`. Qo'llab-quvvatlamasa — hozirgi yo'l. (Brauzer versiyalarini caniuse'da tasdiqla; mobil Safari xatti-harakati alohida.)
+- [ ] Export modalida: **bekor qilish** tugmasi, progress + taxminiy qolgan vaqt, "tabni yopma / ekranni o'chirma" banner.
+- [ ] Chiqish o'lchami: loyiha sozlamasi (hozircha 720p / 1080p tanlovi), 1280 cap'ni tanlovga aylantir. Bitrate presetlari: *Telegram (kichik)*, *Yaxshi*, *Yuqori*.
+- [ ] WebM'da davomiylik metadata'si yo'qligi (ba'zi pleyerda seek qilinmaydi) — 1A dan keyin faqat fallback yo'lda qoladi, shuning uchun bu yerda vaqt sarflama.
 
 #### 1B — Haqiqiy tuzatish: offline render (2–3 hafta)
 
 Bu "Bitta retsept" modelining export yarmi.
 
-- [x] **`Exporter`** moduli (`js/exporter.js` + `js/export-core.js` + `js/export-render.js`), eski export'ga tegmasdan, "Tez export (beta)" tugmasi ortida. **Brauzerda sinalmadi.**
-- [x] **Video kodlash:** `VideoEncoder` (WebCodecs, H.264 / `avc1`), `isConfigSupported()`, kadr sikli `t = i / fps`, `VideoFrame.close()`, `encodeQueueSize` backpressure. **Brauzerda sinalmadi.**
-- [x] **Audio:** `OfflineAudioContext` miks (video ovozi, musiqa, fade, volume, mute, speed) → `AudioEncoder` (AAC, bo'lmasa Opus). Pitch ogohlantirishi modalda va shu logda. **Brauzerda sinalmadi.**
-- [x] **MP4 muxer:** `mp4-muxer@5.2.2` deprecated — vorisi **Mediabunny 1.58.1** `js/vendor/mediabunny.min.js` (MPL-2.0). **Brauzerda sinalmadi.**
-- [x] **Kadr manbai (a):** `<video>` seek → `seeked` → canvas/`drawImage`. **(b) qilinmadi** — sabab: alohida demuxer+rotation+VFR decoder yo'li shu seansda ishonchli yozilmadi; `?export=fast-decoder` flag bor, lekin seek'ga tushadi. work.md ga yozildi.
-- [x] **Renderer:** hozirgi chizish `renderFrame(t)` (`js/export-render.js`). B2–B5 xatti-harakati o'zgartirilmadi.
-- [x] **Speed:** `sourceTime = trimStart + (t - startTime) * speed` (`ExportCore.sourceTimeAt` + mavjud `timelineToSource`).
-- [ ] **Aniqlik testlari:** fixture yonma-yon / A/V chapak — **bajarilmadi** (brauzer + real fayl kerak).
-- [x] **Fallback zanjiri:** fast → mp4 → legacy. `?export=legacy|mp4|fast` majburlaydi. Yo'l `console.info('[export] yo\'l:', ...)`.
-- [x] **Mobil xotira:** `VideoFrame.close()` + `encodeQueueSize` kutish. **Brauzerda sinalmadi.**
-- [ ] Beta muvaffaqiyatli bo'lgach: standart qil — **qilinmadi** (beta tugma saqlanadi, chunki sinalmagan).
+- [ ] **`Exporter`** moduli, eski export'ga tegmasdan, "Tez export (beta)" tugmasi ortida.
+- [ ] **Video kodlash:** `VideoEncoder` (WebCodecs, H.264 / `avc1`), kadr sikli `t = i / fps`.
+- [ ] **Audio:** `OfflineAudioContext` bilan butun miksni (video ovozi, musiqa, fade, volume, mute, speed) oldindan render qilish → `AudioEncoder` (AAC, bo'lmasa Opus).
+- [ ] **MP4 muxer:** kutubxona tanlash — `mp4-muxer` yoki uning vorisi `Mediabunny` (tanlashdan oldin GitHub'da holatini tekshir). `js/vendor/`ga qo'yish (CSP `script-src 'self'`).
+- [ ] **Kadr manbai:** ikki variant, ikkalasini sinab, o'lchov bilan tanla:
+  - **(a)** oddiy: `<video>` seek → `seeked` → `drawImage` (sekinroq, lekin oson, barcha brauzerda ishlaydi);
+  - **(b)** tez: WebCodecs `VideoDecoder` + demuxer (Mediabunny kabi) — ketma-ket dekod, tez va aniq.
+  Tavsiya: **(a) bilan ishlaydigan versiya → keyin (b)ga o'tkaz.** Birinchi navbatda ishlasin, keyin tez bo'lsin.
+- [ ] **Renderer'ni ishlatish:** hozircha Faza 2 gacha eski chizish mantig'ini `render(t)` ichiga ko'chirib qo'y (funksiya sifatida ajratib) — bu Faza 2 uchun ko'prik.
+- [ ] **Speed:** manba kadrlarini `sourceTime = trimStart + (t - startTime) * speed` bilan tanla (mavjud `timelineToSource`). Audio uchun pitch masalasiga qarang (Faza 4 tuzog'i).
+- [ ] **Aniqlik testlari:** har fixture uchun eski va yangi export'ni yonma-yon ko'r; A/V sinxron (chapak tovushli test video: ovoz va kadr bir zumda).
+- [ ] **Fallback zanjiri:** WebCodecs yo'q → 1A yo'li → eski WebM+ffmpeg. Ishlatilgan yo'lni konsolga va (keyin) analytics'ga yoz.
+- [ ] **Mobil xotira:** 1080p kadr sikli xotirani to'ldirmasligi uchun `VideoFrame.close()` ni doim chaqir; backpressure (`encoder.encodeQueueSize` ni kuzat).
+- [ ] Beta muvaffaqiyatli bo'lgach: standart qil, eski yo'lni "Muammo bo'lsa: eski export" ostiga yashir.
 
 **Tuzoqlar (haqiqatan uradigan joylar):**
 
@@ -420,19 +423,49 @@ Bu "Bitta retsept" modelining export yarmi.
 - Nima sinalmadi: B6 xabari haqiqiy HEVC/buzuq fayl bilan; global error handler brauzerda haqiqiy xato tashlab; `beforeunload`/Wake Lock export paytida (Wake Lock HTTPS/localhost talab qiladi); `privacy/index.html`ni brauzerda ko'rib chiqish. B12 va B2/B3/B4/B5 fixturalariga ataylab tegilmadi (foydalanuvchi so'rovi).
 - Keyingi qadam: B2/B3/B4/B5 regressiya fixturalari (Faza 0'ning yagona ochiq bandi) yoki FAZA 1'ga o'tish.
 
-**2026-09-21 — FAZA 1 preflight**
-- `node --check js/*.js` OK. `node tests/logic.test.mjs` 13/13 OK.
-- Faza 1 ga to'siq: B2/B4/B5 regressiya fixturalari yo'q (Faza 0 ochiq band). Faza 0 qayta qilinmadi. B2–B5 tuzatilmadi.
 
-**2026-09-21 — FAZA 1A+1B kod (brauzerda sinalmagan)**
-- Muxer: `npm view mp4-muxer@5.2.2` deprecated; vorisi `mediabunny@1.58.1`. Bundle `js/vendor/mediabunny.min.js`.
-- Sof mantiq: `js/export-core.js` — sifat, MIME, fallback, sourceTime, ETA. Test: `node tests/export-core.test.mjs` **21/21 OK**.
-- Chizish: `js/export-render.js` `renderFrame(t)` — eski mantiq (rasm clip skip, float 7% pad, state.isImage).
-- Live yo'l: `js/export.js` — MP4 MediaRecorder bo'lsa to'g'ridan-to'g'ri .mp4, bo'lmasa WebM+ffmpeg tugmasi. 1280 cap tanlov (720p/1080p). Bekor, ETA, banner. beforeunload + Wake Lock `finally`da. `?export=legacy|mp4|fast`.
-- Tez yo'l: `js/exporter.js` VideoEncoder + OfflineAudioContext + Mediabunny. Variant (b) decoder **yo'q** (`?export=fast-decoder` seek'ga tushadi).
-- Pitch: OfflineAudioContext `playbackRate` pitch'ni o'zgartiradi — modal izohi + shu yozuv. Yashirilmadi.
-- Tuzoq izohlari kodda: VFR = timestamp (i/fps * 1e6), rotation `<video>`+drawImage brauzerga tayanadi (decoder yo'lida alohida), VideoFrame.close + encodeQueueSize.
-- Fayllar: `js/export-core.js`, `js/export-render.js`, `js/exporter.js`, `js/export.js`, `js/canvas.js`, `index.html`, `css/preview.css`, `js/vendor/mediabunny.min.js`, `tests/export-core.test.mjs`, `scripts/dev-headers.js`, `work.md`.
-- Tekshiruv: `node --check` o'zgargan js; `node tests/logic.test.mjs` 13/13; `node tests/export-core.test.mjs` 21/21.
-- Nima sinalmadi: Chrome desktop/Android, Safari iOS, HEVC/.mov, vertikal, 4K, 20 daq, VFR, audiosiz, K-1 vaqt va A/V sinxron — **hech biri**.
+---
+## Production merge (2026-09-21)
+pase0+phase1..5 union. Batafsil: PRODUCTION-MERGE.md
+Core renderer: phase2. Feature modules: phase3/4/1. Integratsiya to'liq emas — sinalmagan.
+
+
+---
+
+## Backlog (Faza 9 audit)
+
+| Band | Sabab | Bahosi | Tavsiya |
+|------|--------|--------|---------|
+| B12 bo'sh timeline | state.videoClips[0]ga ko'p tayanilgan | L | **keyingi versiya** |
+| Float DOM tutqichlar (resize/rotate) | Faza 2C qisman | M | **keyingi versiya** |
+| Export 720/1080 UI tanlov | Faza 2A qisman | S | **keyingi versiya** (kodda quality param bor) |
+| WebCodecs exporter stabil | Faza 1 beta, signal untested | XL | **keyingi versiya** |
+| RNNoise shovqin | Faza 4 ixtiyoriy | L | **keyingi versiya** |
+| 3G Freeze / Reverse | Faza 3 | L | **keyingi versiya** |
+| 3H Tez montaj oqimi | Faza 3 | M | **keyingi versiya** |
+| Multi-import tartib (metadata) | Faza 3 | S | **keyingi versiya** |
+| audioClips/subtitles to'liq core merge | parallel branch union | L | **keyingi versiya** (modullar bor, save sinxron emas) |
+| To'liq i18n (barcha toast → t()) | 9A qisman | M | **keyingi versiya** — asosiy kalitlar bor, grep qoldiqlar qoladi |
+| Lighthouse ball (haqiqiy) | muhitda yo'q | S | **qo'lda** (sen Chrome DevTools) |
+| Playwright smoke to'liq | playwright-core zip'da buzuq | S | **qo'lda** |
+
+## Progress log — FAZA 9 (2026-09-21)
+
+**9-0** Backlog audit yuqorida.
+
+**9A** `js/strings.js` kengaytirildi, `t(key, vars)`. Asosiy toast kalitlari. **To'liq grep migratsiya emas** (xavfli refaktor cheklandi) — qisman.
+
+**9B** `js/onboarding.js` — 3 qadam, skip, localStorage `emr.onboarding_seen`, bo'sh dashboard hint. CSS `base.css`.
+
+**9C** `js/analytics.js` + `migrations/006_analytics_errors.sql`. track() allow-list meta. Export started/completed/failed, project_created ulandi. privacy/terms yangilandi.
+
+**9D** Global error → client_errors, dedup 1/session, stack 2000. Faza 0 handler bilan birga.
+
+**9E** Kichik focus-visible onboarding tugmalarida. Lighthouse **yugurtirilmadi**.
+
+**9F** description, OG, Twitter meta; manifest link; og:image=assets/logo.png.
+
+**9G** privacy + terms analitika bo'limi. help skrinshot audit **qo'lda**.
+
+**9H** Node testlar: logic, geometry, migrate, audio, export-core, text-core, faza9 (8/8). Smoke/playwright **yugurtirilmadi**. Brauzer **sinalmagan**.
 

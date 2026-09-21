@@ -1,14 +1,3 @@
-# Testlar
-
-Sof mantiq (npm shart emas):
-
-```bash
-node tests/logic.test.mjs
-node tests/export-core.test.mjs
-```
-
----
-
 # B15 (ffmpeg lazy-load) — avtomatik brauzer testi
 
 Bu papkadagi `verify-b15-ffmpeg-lazyload.mjs` haqiqiy Chromium'da (Playwright
