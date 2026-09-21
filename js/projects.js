@@ -1,6 +1,29 @@
     // ===================== PROJECTS (dashboard + autosave + open/close) =====================
-    // Oqim:  dashboard  --(fayl tanlash)-->  yangi project  --(autosave, IndexedDB)-->  editor
+    // Oqim:  dashboard  --(fayl tanlash)-->  yangi project  --(autosave, Supabase)-->  editor
     //        dashboard  --(kartani bosish)-->  openProject()  ...  "back" --> closeProject()
+
+    // ===== Sxema versiyasi (Faza 0) =====
+    // Loyiha JSON'ining formati. Yangi maydon qo'shilganda: (1) shu raqamni
+    // oshir, (2) migrateProjectMeta() ga eski loyihalarni yangi maydonning
+    // default qiymati bilan to'ldiradigan qadam qo'sh. Qoida: default qiymat
+    // SHU YERDA (migrate'da) beriladi, saveProjectNow'dagi qo'lda whitelist'da
+    // emas — shu bilan A5 xavfi (maydon qo'shishda birini unutish, B1 shundan
+    // chiqqan edi) kamayadi.
+    const PROJECT_SCHEMA_VERSION = 1;
+
+    // Eski (kichikroq schemaVersion yoki umuman yo'q — eski loyihalar) meta'ni
+    // joriy versiyaga ko'taradi. Hozircha (v1) hech qanday maydon migratsiyasi
+    // kerak emas — bu birinchi versiya, funksiya keyingi versiyalar uchun joy.
+    function migrateProjectMeta(meta) {
+      if (!meta) return meta;
+      let v = meta.schemaVersion || 0;
+      if (v < 1) {
+        // v0 -> v1: struktura o'zgarmadi, faqat versiya belgilanadi.
+        v = 1;
+      }
+      meta.schemaVersion = v;
+      return meta;
+    }
 
     function baseName(fileName) {
       return fileName.replace(/\.[^.]+$/, '') || fileName;
@@ -221,6 +244,7 @@
 
       const meta = {
         id: pid,
+        schemaVersion: PROJECT_SCHEMA_VERSION,
         name: state.projectName,
         createdAt: state.projectCreatedAt,
         updatedAt: Date.now(),
@@ -611,7 +635,8 @@
           await dbAcquireProjectLock(id, { steal: !!(opts && opts.steal) });
           lockTaken = true;
         }
-        const [meta, recs] = await Promise.all([dbGetProject(id), dbGetFiles(id)]);
+        let [meta, recs] = await Promise.all([dbGetProject(id), dbGetFiles(id)]);
+        meta = migrateProjectMeta(meta);
 
         // Fayllar: bitta manba = bitta File + bitta URL (split qilingan clip'lar ulashadi)
         const clipFileIds = new Set((meta?.clips || []).map(c => c.fileId));

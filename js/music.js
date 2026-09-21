@@ -22,11 +22,11 @@
         }
 
         await loadMusicFromFile(file, { startTime: state.currentTime });
-        showToast('Music added');
+        showToast('Musiqa qo\'shildi');
         scheduleSave();
       } catch (err) {
         console.error(err);
-        showToast('Failed to load music');
+        showToast('Musiqani yuklab bo\'lmadi');
       } finally {
         loading.classList.remove('show');
       }
@@ -46,12 +46,21 @@
 
       const duration = audio.duration || 30;
       let audioBuffer = null;
+      // B10 tuzatish: bu AudioContext faqat bir martalik decodeAudioData uchun kerak
+      // (pleybek <audio> elementi orqali ketadi, bu context'ga bog'liq emas) — shuning
+      // uchun ishlatilgach yopamiz. Ilgari yopilmas edi: musiqa necha marta
+      // almashtirilsa, shuncha ochiq AudioContext to'planardi (leak).
+      let audioCtx = null;
       try {
         const arrayBuffer = await file.arrayBuffer();
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         audioBuffer = await audioCtx.decodeAudioData(arrayBuffer.slice(0));
       } catch (err) {
         console.warn('Waveform decode failed', err);
+      } finally {
+        if (audioCtx) {
+          try { audioCtx.close(); } catch (_) {}
+        }
       }
 
       state.music = {

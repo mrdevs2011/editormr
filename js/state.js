@@ -34,7 +34,9 @@
       isPlayheadDragging: false,
       isExporting: false,
 
-      // Project (IndexedDB da saqlanadi)
+      // Project (Supabase'da saqlanadi — B14 tuzatish: izohda ilgari
+      // "IndexedDB" deyilgan edi, eskirgan; haqiqiy kod js/storage.js orqali
+      // Supabase Postgres + Storage bucket'ga yozadi)
       projectId: null,
       projectName: '',
       projectCreatedAt: 0,
@@ -49,6 +51,20 @@
 
     function makeClipId() {
       return 'c' + Math.random().toString(36).slice(2, 9);
+    }
+
+    // B11 tuzatish: ilgari video-clip literali `upload.js`da 3 joyda (rasm,
+    // video muvaffaqiyatli, video xato) deyarli aynan nusxa ko'chirilgan edi.
+    // Endi bitta joy — maydonlar to'planib qolsa ham (masalan yangi effekt
+    // maydoni) faqat shu yerda qo'shiladi.
+    function createClip(overrides) {
+      return Object.assign({
+        id: makeClipId(),
+        startTime: 0, trimStart: 0, trimEnd: 5, offsetY: 0, track: 0,
+        url: null, file: null, duration: 5, isImage: false, filmstrip: null, name: '',
+        volume: 1, muted: false, speed: 1, fadeIn: 0, fadeOut: 0,
+        transitionType: 'none', transitionDuration: 0.3,
+      }, overrides || {});
     }
 
     function makeTextClipId() {

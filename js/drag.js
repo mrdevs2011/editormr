@@ -3,9 +3,10 @@
     // klip USTIGA tushmaydi. Musiqa/matn treki ustiga ham chiqmaydi
     // (faqat video-lane ichidagi qatorlar).
 
-    function clipsTimeOverlap(aStart, aEnd, bStart, bEnd) {
-      return aStart < bEnd - 1e-4 && bStart < aEnd - 1e-4;
-    }
+    // clipsTimeOverlap — state.js da e'lon qilingan (B11: bu yerda ilgari
+    // aynan bir xil funksiya ikkinchi marta e'lon qilinardi — script tartibiga
+    // fragil bog'liqlik edi, global scope'da state.js dagisi ustidan yozilib
+    // ketardi; olib tashlandi, state.js dagisi ishlatiladi).
 
     function videoClipsOnTrack(track, excludeIds) {
       excludeIds = excludeIds || new Set();

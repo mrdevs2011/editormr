@@ -83,6 +83,8 @@
         clipCount: row.clip_count,
         clips: row.clips || [],
         music: row.music || null,
+        // B1 tuzatish: matn overlay'lar endi alohida ustunda saqlanadi/o'qiladi (migrations/001_add_text_clips.sql)
+        textClips: Array.isArray(row.text_clips) ? row.text_clips : [],
         currentTime: row.current_time_sec || 0,
         pps: row.pps,
         canvas: fn[CANVAS_KEY] || null,
@@ -192,6 +194,8 @@
         clip_count: meta.clipCount,
         clips: meta.clips,
         music: meta.music,
+        // B1 tuzatish: matn overlay'larni ham DB'ga yozamiz (ilgari yo'qolib ketardi)
+        text_clips: meta.textClips || [],
         current_time_sec: meta.currentTime,
         pps: meta.pps,
         file_names: fileNames,

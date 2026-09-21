@@ -12,6 +12,40 @@
   <style>html.auth-pending body { visibility: hidden; }</style>
   <script>document.documentElement.classList.add('auth-pending');</script>
 
+  <!-- Faza 0: global xato ushlovchi. Boshqa <script>lardan OLDIN qo'yilgan —
+       keyinroq yuklanadigan fayllardagi runtime xatolarni ham ushlaydi.
+       showToast hali yuklanmagan bo'lishi mumkin (helpers.js keyinroq
+       kelyapti) — shuning uchun mavjud bo'lsagina chaqiriladi, xato har doim
+       konsolga struktura bilan yoziladi (Faza 9da yuborishga ulanadi). -->
+  <script>
+    (function () {
+      function reportError(kind, detail) {
+        try { console.error('[EMR]', kind, detail); } catch (_) {}
+        try {
+          if (typeof window.showToast === 'function') {
+            window.showToast('Kutilmagan xato yuz berdi (konsolni tekshiring)');
+          }
+        } catch (_) {}
+      }
+      window.addEventListener('error', function (e) {
+        reportError('window.onerror', {
+          message: e.message,
+          source: e.filename,
+          line: e.lineno,
+          col: e.colno,
+          stack: e.error && e.error.stack,
+        });
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        var reason = e.reason;
+        reportError('unhandledrejection', {
+          message: (reason && reason.message) ? reason.message : String(reason),
+          stack: reason && reason.stack,
+        });
+      });
+    })();
+  </script>
+
   <!-- ===== ICONS ===== -->
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
@@ -85,7 +119,7 @@
         </button>
       </div>
     </div>
-    <input type="file" id="file-input" accept="video/*,image/*" />
+    <input type="file" id="file-input" accept="video/*,image/*" multiple />
   </div>
 
   <!-- EDITOR SCREEN -->
@@ -226,9 +260,9 @@
 
   <!-- ===== SCRIPTS (tartib muhim — har biri oldingisiga bog'liq) ===== -->
   <!-- ===== AUTH (Supabase) ===== -->
-  <!-- FFmpeg.wasm (MP4 transcode) -->
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js"></script>
+  <!-- FFmpeg.wasm (MP4 transcode) — B15: endi js/export.js:getFFmpeg() ichida
+       faqat export bosilganda dinamik <script> bilan yuklanadi, sahifa
+       ochilishida emas. -->
   <script src="js/vendor/supabase.js"></script>
   <script src="js/supabase-config.js"></script>
   <script src="js/auth.js"></script>

@@ -1,4 +1,17 @@
     // ===================== EXPORT (real timeline render) =====================
+
+    // B7 yamog'i: export real-time (rAF/captureStream) ketyapti, tab yopilsa
+    // yoki yangilansa natija yo'qoladi, fonga o'tsa esa kadr tushib qolishi
+    // mumkin. Ikkalasiga ham to'liq yechim emas (haqiqiy fix — Faza 1,
+    // offline/WebCodecs render), lekin eng arzon himoya: ogohlantirish +
+    // ekranni o'chirmaslik.
+    function exportBeforeUnloadGuard(e) {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    }
+    let _exportWakeLock = null;
+
     exportBtn.addEventListener('click', async () => {
       if (!state.videoClips || !state.videoClips.length) {
         showToast('Export qilish uchun video/rasm qo\'shing');
@@ -8,6 +21,15 @@
       state.isExporting = true;
       showExportProgressModal(0);
 
+      window.addEventListener('beforeunload', exportBeforeUnloadGuard);
+      if (navigator.wakeLock && typeof navigator.wakeLock.request === 'function') {
+        try {
+          _exportWakeLock = await navigator.wakeLock.request('screen');
+        } catch (_) {
+          _exportWakeLock = null; // qo'llab-quvvatlanmasa yoki ruxsat berilmasa — jim davom et
+        }
+      }
+
       try {
         await exportTimeline();
       } catch (err) {
@@ -16,6 +38,11 @@
         closeExportUiModal();
       } finally {
         state.isExporting = false;
+        window.removeEventListener('beforeunload', exportBeforeUnloadGuard);
+        if (_exportWakeLock) {
+          try { await _exportWakeLock.release(); } catch (_) {}
+          _exportWakeLock = null;
+        }
       }
     });
 
@@ -503,6 +530,31 @@
     }
 
     // ---------- MP4 (ffmpeg.wasm) ----------
+    // B15 tuzatish: ilgari ffmpeg.js + @ffmpeg/util index.html'da <script> bilan
+    // HAR SAHIFA YUKLANGANDA olinardi (export qilinmasa ham). Endi shu ikkita
+    // kutubxona faqat birinchi marta export (MP4) kerak bo'lganda inject qilinadi.
+    const FFMPEG_SCRIPTS = [
+      'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js',
+      'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.js',
+    ];
+    let ffmpegScriptsLoading = null;
+    function loadFFmpegScripts() {
+      if (window.FFmpegWASM || window.FFmpeg) return Promise.resolve();
+      if (ffmpegScriptsLoading) return ffmpegScriptsLoading;
+      ffmpegScriptsLoading = (async () => {
+        for (const src of FFMPEG_SCRIPTS) {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error('FFmpeg skripti yuklanmadi: ' + src));
+            document.head.appendChild(s);
+          });
+        }
+      })();
+      return ffmpegScriptsLoading;
+    }
+
     let ffmpegInstance = null;
     let ffmpegLoading = null;
 
@@ -510,6 +562,7 @@
       if (ffmpegInstance) return ffmpegInstance;
       if (ffmpegLoading) return ffmpegLoading;
       ffmpegLoading = (async () => {
+        await loadFFmpegScripts();
         const FFmpegClass = (window.FFmpegWASM && window.FFmpegWASM.FFmpeg)
           || (window.FFmpeg && window.FFmpeg.FFmpeg)
           || window.FFmpeg;

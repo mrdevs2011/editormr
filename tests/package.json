@@ -1,0 +1,12 @@
+{
+  "name": "emr-tests",
+  "private": true,
+  "type": "module",
+  "description": "EditorMR uchun avtomatlashtirilgan brauzer testlari (Playwright). Bu papka asosiy loyihadan MUSTAQIL — root'da package.json yo'qligi muhim (Vercel'ning static-site deploy'ini Node loyihasiga aylantirib qo'ymasin uchun).",
+  "scripts": {
+    "test:b15": "node verify-b15-ffmpeg-lazyload.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  }
+}
