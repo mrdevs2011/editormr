@@ -352,6 +352,7 @@
         startTime: tc.startTime,
         duration: tc.duration,
         offsetY: tc.offsetY || 0,
+        track: tc.track != null ? tc.track : 0,
         x: tc.x != null ? tc.x : 0.5,
         y: tc.y != null ? tc.y : 0.85,
         fontSize: tc.fontSize || 32,

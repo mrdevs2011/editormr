@@ -3,6 +3,7 @@
       text: 'Text',
       duration: 3,
       offsetY: 0,
+      track: 0,
       x: 0.5,
       y: 0.85,
       fontSize: 32,
@@ -13,6 +14,72 @@
       bgOpacity: 0.45,
     };
 
+    const TEXT_ROW_H = 28;
+    const MAX_TEXT_TRACKS = 12;
+
+    function textTrackIndex(tc) {
+      if (!tc) return 0;
+      const t = tc.track != null ? Number(tc.track) : 0;
+      return Math.max(0, Math.min(MAX_TEXT_TRACKS - 1, Math.round(t) || 0));
+    }
+
+    function textClipDuration(tc) {
+      return Math.max(0.1, (tc && tc.duration) || 1);
+    }
+
+    function textClipsOnTrack(track, excludeId) {
+      return (state.textClips || []).filter((c) => {
+        if (!c || c.id === excludeId) return false;
+        return textTrackIndex(c) === track;
+      });
+    }
+
+    /** Bir qatorda ustma-ust tushmasin — overlap bo'lsa keyinga suradi */
+    function resolveTextStartOnTrack(track, excludeId, desiredStart, duration) {
+      let start = Math.max(0, desiredStart);
+      const others = textClipsOnTrack(track, excludeId)
+        .slice()
+        .sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+      let changed = true;
+      let guard = 0;
+      while (changed && guard++ < 64) {
+        changed = false;
+        const myEnd = start + duration;
+        for (let i = 0; i < others.length; i++) {
+          const o = others[i];
+          const oStart = o.startTime || 0;
+          const oEnd = oStart + textClipDuration(o);
+          if (start < oEnd - 1e-4 && myEnd > oStart + 1e-4) {
+            start = oEnd;
+            changed = true;
+          }
+        }
+      }
+      return Math.max(0, start);
+    }
+
+    function textTrackSlotFree(track, start, duration, excludeId) {
+      const end = start + duration;
+      const others = textClipsOnTrack(track, excludeId);
+      for (let i = 0; i < others.length; i++) {
+        const o = others[i];
+        const oStart = o.startTime || 0;
+        const oEnd = oStart + textClipDuration(o);
+        if (start < oEnd - 1e-4 && end > oStart + 1e-4) return false;
+      }
+      return true;
+    }
+
+    /** Bo'sh qator topish (overlap bo'lmasin) */
+    function findFreeTextTrack(start, duration, excludeId, preferred) {
+      const pref = preferred != null ? preferred : 0;
+      if (textTrackSlotFree(pref, start, duration, excludeId)) return pref;
+      for (let t = 0; t < MAX_TEXT_TRACKS; t++) {
+        if (textTrackSlotFree(t, start, duration, excludeId)) return t;
+      }
+      return pref;
+    }
+
     function createTextClip(overrides = {}) {
       return {
         id: makeTextClipId(),
@@ -20,6 +87,7 @@
         startTime: state.currentTime || 0,
         duration: TEXT_DEFAULTS.duration,
         offsetY: TEXT_DEFAULTS.offsetY,
+        track: TEXT_DEFAULTS.track,
         x: TEXT_DEFAULTS.x,
         y: TEXT_DEFAULTS.y,
         fontSize: TEXT_DEFAULTS.fontSize,
@@ -38,7 +106,10 @@
         return;
       }
       pushHistory();
-      const tc = createTextClip({ text: 'Matn' });
+      const start = state.currentTime || 0;
+      const dur = TEXT_DEFAULTS.duration;
+      const track = findFreeTextTrack(start, dur, null, 0);
+      const tc = createTextClip({ text: 'Matn', startTime: start, track: track });
       if (!state.textClips) state.textClips = [];
       state.textClips.push(tc);
       selectOnly(tc.id);
@@ -61,23 +132,42 @@
 
     function renderTextLane() {
       const lane = getTextLane();
-      const track = getTextTrack();
-      if (!lane || !track) return;
+      const trackEl = getTextTrack();
+      if (!lane || !trackEl) return;
 
       lane.innerHTML = '';
       const list = state.textClips || [];
-      track.style.display = list.length ? 'flex' : 'none';
+      trackEl.style.display = list.length ? 'flex' : 'none';
+      if (!list.length) {
+        lane.style.minHeight = '';
+        trackEl.style.minHeight = '';
+        return;
+      }
+
+      let maxTrack = 0;
+      for (let i = 0; i < list.length; i++) {
+        maxTrack = Math.max(maxTrack, textTrackIndex(list[i]));
+      }
+      // Bitta bo'sh qator qo'shimcha (yangi qatorga tashlash uchun)
+      const rows = Math.min(MAX_TEXT_TRACKS, maxTrack + 2);
+      const laneH = Math.max(TEXT_ROW_H, rows * TEXT_ROW_H + 8);
+      lane.style.minHeight = laneH + 'px';
+      trackEl.style.minHeight = laneH + 'px';
+      trackEl.style.height = laneH + 'px';
 
       for (const tc of list) {
         const left = timeToPx(tc.startTime);
         const width = Math.max(timeToPx(Math.max(0.1, tc.duration || 1)), 24);
+        const tr = textTrackIndex(tc);
+        const top = 4 + tr * TEXT_ROW_H;
 
         const block = document.createElement('div');
         block.className = 'media-block text' + (isSelected(tc.id) ? ' selected' : '');
         block.dataset.clipId = tc.id;
         block.style.left = left + 'px';
         block.style.width = width + 'px';
-        block.style.top = '4px';
+        block.style.top = top + 'px';
+        block.style.height = (TEXT_ROW_H - 6) + 'px';
 
         const label = document.createElement('div');
         label.className = 'label';
@@ -169,7 +259,7 @@
     }
 
     // ---- Drag (move only) ----
-    let textDrag = null; // { id, startX, origStart }
+    let textDrag = null; // { id, startX, startY, origStart, origTrack }
 
     function startTextDrag(e, id) {
       e.preventDefault();
@@ -179,9 +269,12 @@
       textDrag = {
         id,
         startX: e.clientX,
+        startY: e.clientY,
         origStart: tc.startTime,
+        origTrack: textTrackIndex(tc),
       };
       state.isDragging = true;
+      state.dragTarget = 'text';
       timeRuler.classList.add('hide-ticks');
       document.addEventListener('pointermove', onTextDrag);
       document.addEventListener('pointerup', endTextDrag);
@@ -192,19 +285,48 @@
       const tc = getTextClipById(textDrag.id);
       if (!tc) return;
       const dx = e.clientX - textDrag.startX;
+      const dy = e.clientY - textDrag.startY;
       const dt = pxToTime(dx);
-      tc.startTime = Math.max(0, textDrag.origStart + dt);
+      const dTrack = Math.round(dy / TEXT_ROW_H);
+      let track = Math.max(0, Math.min(MAX_TEXT_TRACKS - 1, textDrag.origTrack + dTrack));
+      let start = Math.max(0, textDrag.origStart + dt);
+      const dur = textClipDuration(tc);
+      // Bir qatorda ustma-ust bo'lmasin
+      if (!textTrackSlotFree(track, start, dur, tc.id)) {
+        start = resolveTextStartOnTrack(track, tc.id, start, dur);
+        // Agar baribir joy yo'q (juda zich) — boshqa qatorga
+        if (!textTrackSlotFree(track, start, dur, tc.id)) {
+          track = findFreeTextTrack(start, dur, tc.id, track);
+          start = resolveTextStartOnTrack(track, tc.id, start, dur);
+        }
+      }
+      tc.track = track;
+      tc.offsetY = track * TEXT_ROW_H;
+      tc.startTime = start;
       renderTextLane();
       updateTimelineLayout();
       updateTextOverlays();
     }
 
     function endTextDrag() {
+      if (textDrag) {
+        const tc = getTextClipById(textDrag.id);
+        if (tc) {
+          const dur = textClipDuration(tc);
+          const tr = textTrackIndex(tc);
+          tc.startTime = resolveTextStartOnTrack(tr, tc.id, tc.startTime || 0, dur);
+          tc.track = tr;
+          tc.offsetY = tr * TEXT_ROW_H;
+        }
+      }
       textDrag = null;
       state.isDragging = false;
+      state.dragTarget = null;
       timeRuler.classList.remove('hide-ticks');
       document.removeEventListener('pointermove', onTextDrag);
       document.removeEventListener('pointerup', endTextDrag);
+      renderTextLane();
+      updateTimelineLayout();
       scheduleSave();
     }
 

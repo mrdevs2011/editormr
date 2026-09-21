@@ -240,8 +240,8 @@
     for (var i = 0; i < sorted.length; i++) {
       maxTrack = Math.max(maxTrack, sorted[i].track || 0);
     }
-    // Lane height grows with tracks
-    var laneH = Math.max(32, (maxTrack + 1) * 28 + 8);
+    // Lane height grows with tracks (+1 empty row for drop target)
+    var laneH = Math.max(32, (maxTrack + 2) * 28 + 8);
     musicLane.style.minHeight = laneH + 'px';
     if (musicTrack) musicTrack.style.minHeight = laneH + 'px';
 
@@ -364,6 +364,8 @@
   }
 
   // Drag for audio clips — lightweight, updates audioClips then re-renders
+  var AUDIO_ROW_H = 28;
+  var MAX_AUDIO_TRACKS = 12;
   var audioDrag = null;
   function startAudioDrag(e, clip, type, origin) {
     e.preventDefault();
@@ -372,7 +374,9 @@
       clip: clip,
       type: type,
       startX: e.clientX,
+      startY: e.clientY,
       origStart: clip.startTime,
+      origTrack: clip.track != null ? clip.track : 0,
       origTrimStart: clip.trimStart,
       origTrimEnd: clip.trimEnd,
       changed: false,
@@ -381,15 +385,19 @@
     function onMove(ev) {
       if (!audioDrag) return;
       var dx = ev.clientX - audioDrag.startX;
+      var dy = ev.clientY - audioDrag.startY;
       var dt = typeof pxToTime === 'function' ? pxToTime(dx) : dx / (state.pixelsPerSecond || 40);
       var c = audioDrag.clip;
       if (audioDrag.type === 'move') {
-        var vis = (c.trimEnd - c.trimStart);
+        var vis = Math.max(0.05, (c.trimEnd - c.trimStart));
         var logic = L();
+        var dTrack = Math.round(dy / AUDIO_ROW_H);
+        var track = Math.max(0, Math.min(MAX_AUDIO_TRACKS - 1, (audioDrag.origTrack || 0) + dTrack));
         var ns = Math.max(0, audioDrag.origStart + dt);
         if (logic && logic.resolveAudioStartTimeOnTrack) {
-          ns = logic.resolveAudioStartTimeOnTrack(state.audioClips, c.track || 0, c.id, ns, vis);
+          ns = logic.resolveAudioStartTimeOnTrack(state.audioClips, track, c.id, ns, vis);
         }
+        c.track = track;
         c.startTime = ns;
         audioDrag.changed = true;
       } else if (audioDrag.type === 'trim-left') {
